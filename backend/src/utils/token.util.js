@@ -2,9 +2,7 @@ import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import config from '../config/index.js';
 
-/**
- * Generate Access Token
- */
+
 export const generateAccessToken = (user) => {
   return jwt.sign(
     {
@@ -18,10 +16,6 @@ export const generateAccessToken = (user) => {
   );
 };
 
-/**
- * Generate Refresh Token
- * Supports token family + multi-device login
- */
 export const generateRefreshToken = (user, existingFamily = null) => {
   const tokenId = uuidv4();
   const tokenFamily = existingFamily || uuidv4();
@@ -46,16 +40,10 @@ export const generateRefreshToken = (user, existingFamily = null) => {
   };
 };
 
-/**
- * Verify Access Token
- */
 export const verifyAccessToken = (token) => {
   return jwt.verify(token, config.jwt.accessSecret);
 };
 
-/**
- * Verify Refresh Token
- */
 export const verifyRefreshToken = (token) => {
   return jwt.verify(token, config.jwt.refreshSecret);
 };

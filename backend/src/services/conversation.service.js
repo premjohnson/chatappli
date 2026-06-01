@@ -4,16 +4,12 @@ import ConversationRepository from "../repositories/conversation.repository.js";
 
 class ConversationService {
 
-/* ================= PRIVATE CHAT ================= */
+//private conversation creation
 
 static async createPrivateConversation(
   userId,
   targetUserId
 ) {
-
-  // ============================================
-  // PREVENT SELF CONVERSATION
-  // ============================================
 
   if (
     userId.toString() ===
@@ -24,11 +20,6 @@ static async createPrivateConversation(
     );
   }
 
-  // ============================================
-  // GENERATE DETERMINISTIC PRIVATE KEY
-  // Prevent duplicate private conversations
-  // ============================================
-
   const privateKey =
 
     [userId, targetUserId]
@@ -38,11 +29,6 @@ static async createPrivateConversation(
       .sort()
 
       .join(':');
-
-  // ============================================
-  // CHECK EXISTING CONVERSATION
-  // ============================================
-
   const existing =
 
     await ConversationRepository
@@ -52,10 +38,6 @@ static async createPrivateConversation(
 
   if (existing)
     return existing;
-
-  // ============================================
-  // CREATE PRIVATE CONVERSATION
-  // ============================================
 
   return ConversationRepository.create({
 
@@ -87,7 +69,7 @@ static async createPrivateConversation(
   });
 }
 
-/* ================= GROUP CREATE ================= */
+//group conversation creation
 
   static async createGroupConversation(
     userId,
@@ -98,9 +80,6 @@ static async createPrivateConversation(
     if (!data.groupName)
       throw new Error("Group name required");
 
-    // ============================================
-    // NORMALIZE + DEDUPE MEMBER IDS
-    // ============================================
 
     const members = [
       ...new Set(
@@ -110,19 +89,10 @@ static async createPrivateConversation(
       )
     ];
 
-    // ============================================
-    // REMOVE OWNER FROM MEMBER LIST
-    // Prevent duplicate owner participant
-    // ============================================
-
     const normalizedMembers =
       members.filter(
         id => id !== userId.toString()
       );
-
-    // ============================================
-    // BUILD PARTICIPANTS
-    // ============================================
 
     const participants = [
 
@@ -139,10 +109,6 @@ static async createPrivateConversation(
 
     let avatarData;
 
-    // ============================================
-    // UPLOAD GROUP AVATAR
-    // ============================================
-
     if (file) {
 
       const upload =
@@ -155,10 +121,6 @@ static async createPrivateConversation(
         url: upload.secure_url
       };
     }
-
-    // ============================================
-    // CREATE CONVERSATION
-    // ============================================
 
     return ConversationRepository.create({
 
@@ -187,7 +149,7 @@ static async createPrivateConversation(
     });
   }
 
-  /* ================= UPDATE GROUP INFO ================= */
+//update group info (name, about, avatar)
 static async updateGroupInfo(conversationId, userId, data, file) {
 
     return TransactionManager.run(async (session) => {
@@ -234,8 +196,7 @@ static async updateGroupInfo(conversationId, userId, data, file) {
 
   }
 
-
-/* ================= ADD MEMBER ================= */
+//add participant to group conversation
 
 static async addParticipant(
   conversationId,
@@ -268,10 +229,6 @@ static async addParticipant(
     throw new Error("Permission denied");
   }
 
-  // ============================================
-  // ATOMIC UPDATE
-  // Prevent duplicate users safely
-  // ============================================
 
   const updatedConversation =
     await ConversationRepository.addParticipantAtomically(
@@ -288,7 +245,6 @@ static async addParticipant(
   return updatedConversation;
 }
 
-  /* ================= REMOVE MEMBER ================= */
   static async removeParticipant(conversationId, userId, removeUserId) {
 
   const conversation =
@@ -317,8 +273,7 @@ static async addParticipant(
 
   return ConversationRepository.save(conversation);
 }
-
-  /* ================= PROMOTE ADMIN ================= */
+//promote member to admin in group conversation
   static async promoteToAdmin(conversationId, userId, targetUserId) {
 
   const conversation =
@@ -345,8 +300,7 @@ static async addParticipant(
 
   return ConversationRepository.save(conversation);
 }
-
-  /* ================= SOFT DELETE ================= */
+//delete conversation for user (soft delete)
   static async deleteConversationForUser(conversationId, userId) {
 
   await ConversationRepository.updateOne(
@@ -356,7 +310,7 @@ static async addParticipant(
 
 }
 
-  /* ================= GET USER CONVERSATIONS (PAGINATED) ================= */
+//get user conversations with pagination
   static async getUserConversations(userId, { page = 1, limit = 20 }) {
 
   page = Math.max(parseInt(page) || 1, 1);

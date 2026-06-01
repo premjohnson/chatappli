@@ -1,9 +1,5 @@
 import { ERROR_CODES, ERROR_MESSAGES } from './errorConstants.js';
 
-/**
- * Custom Application Error Class
- * Standardizes error structure across the app.
- */
 class AppError extends Error {
   constructor(errorCode, statusCode = 400, details = null) {
     const message = ERROR_MESSAGES[errorCode] || ERROR_MESSAGES[ERROR_CODES.INTERNAL_SERVER_ERROR];

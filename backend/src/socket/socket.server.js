@@ -20,9 +20,7 @@ let subClient;
 
 export const initSocket = async (httpServer) => {
 
-  // ============================================
-  // SOCKET.IO SERVER
-  // ============================================
+//socket.io server initialization
 
   io = new Server(httpServer, {
     cors: {
@@ -31,9 +29,7 @@ export const initSocket = async (httpServer) => {
     }
   });
 
-  // ============================================
-  // REDIS PUB/SUB CLIENTS
-  // ============================================
+//pub and sub clients for redis adapter
 
   pubClient = createClient({
     url: config.redis.url
@@ -45,10 +41,7 @@ export const initSocket = async (httpServer) => {
   await pubClient.connect();
 
   await subClient.connect();
-
-  // ============================================
-  // SOCKET.IO REDIS ADAPTER
-  // ============================================
+//socket.io redis adapter setup
 
   io.adapter(
     createAdapter(
@@ -61,15 +54,7 @@ export const initSocket = async (httpServer) => {
     "Redis adapter connected for Socket.IO"
   );
 
-  // ============================================
-  // SOCKET AUTH MIDDLEWARE
-  // ============================================
-
   io.use(socketAuthMiddleware);
-
-  // ============================================
-  // SOCKET CONNECTION
-  // ============================================
 
   io.on(
 
@@ -79,10 +64,6 @@ export const initSocket = async (httpServer) => {
 
       const userId =
         socket.userId;
-
-      // ============================================
-      // SAFETY CHECK
-      // ============================================
 
       if (!userId) {
 
@@ -102,11 +83,6 @@ export const initSocket = async (httpServer) => {
          | User ${userId}`
       );
 
-      // ============================================
-      // CENTRALIZED DISCONNECT CLEANUP
-      // Register immediately to prevent leaks
-      // ============================================
-
       socket.on(
         "disconnect",
         async (reason) => {
@@ -117,10 +93,6 @@ export const initSocket = async (httpServer) => {
           );
         }
       );
-
-      // ============================================
-      // REGISTER SOCKET HANDLERS
-      // ============================================
 
       await registerSocketHandlers(
         io,

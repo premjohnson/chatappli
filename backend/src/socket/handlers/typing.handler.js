@@ -13,10 +13,7 @@ export default function typingHandler(
   io,
   socket
 ) {
-
-  // ============================================
-  // TYPING START
-  // ============================================
+// Initialize a set to track which conversations this socket is currently typing in
 
   socket.on(
 
@@ -31,11 +28,6 @@ export default function typingHandler(
           : () => {};
 
       try {
-
-        // ============================================
-        // VALIDATE PAYLOAD
-        // ============================================
-
         const parsed =
 
           typingSchema.safeParse(
@@ -58,10 +50,6 @@ export default function typingHandler(
           conversationId
         } = parsed.data;
 
-        // ============================================
-        // VALIDATE ROOM MEMBERSHIP (PREVENT SPOOFING)
-        // ============================================
-
         const rooms = socket.rooms;
         if (!rooms.has(conversationId)) {
           safeAck({
@@ -70,19 +58,9 @@ export default function typingHandler(
           });
           return;
         }
-
-        // ============================================
-        // TRACK TYPING STATE
-        // ============================================
-
         socket.typingConversations.add(
           conversationId
         );
-
-        // ============================================
-        // BROADCAST EVENT
-        // ============================================
-
         socket.to(conversationId).emit(
 
           TYPING_EVENTS.TYPING_START,
@@ -91,11 +69,6 @@ export default function typingHandler(
             userId: socket.userId
           }
         );
-
-        // ============================================
-        // ACK SUCCESS
-        // ============================================
-
         safeAck({
           success: true
         });
@@ -116,11 +89,6 @@ export default function typingHandler(
       }
     }
   );
-
-  // ============================================
-  // TYPING STOP
-  // ============================================
-
   socket.on(
 
     TYPING_EVENTS.TYPING_STOP,
@@ -156,11 +124,6 @@ export default function typingHandler(
         const {
           conversationId
         } = parsed.data;
-
-        // ============================================
-        // VALIDATE ROOM MEMBERSHIP
-        // ============================================
-
         const rooms = socket.rooms;
         if (!rooms.has(conversationId)) {
           safeAck({
@@ -170,17 +133,9 @@ export default function typingHandler(
           return;
         }
 
-        // ============================================
-        // REMOVE TYPING TRACKING
-        // ============================================
-
         socket.typingConversations.delete(
           conversationId
         );
-
-        // ============================================
-        // BROADCAST EVENT
-        // ============================================
 
         socket.to(conversationId).emit(
 
@@ -190,10 +145,6 @@ export default function typingHandler(
             userId: socket.userId
           }
         );
-
-        // ============================================
-        // ACK SUCCESS
-        // ============================================
 
         safeAck({
           success: true

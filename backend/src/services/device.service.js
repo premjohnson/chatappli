@@ -2,24 +2,19 @@ import DeviceRepository from "../repositories/device.repository.js";
 
 class DeviceService {
 
-  /* ================= REGISTER DEVICE ================= */
+//register or update device for push notifications
 
   static async registerDevice(userId, deviceData) {
-    // Uses atomic upsert to prevent check-then-act race conditions
-    // and seamlessly handle device key rotations/re-logins.
+
     return await DeviceRepository.upsertDevice(userId, deviceData);
   }
-
-  /* ================= GET USER DEVICES ================= */
-
+//get user's registered devices
   static async getUserDevices(userId) {
 
     return DeviceRepository.findUserDevices(userId);
 
   }
-
-  /* ================= REVOKE DEVICE ================= */
-
+//revoke a device (logout from that device)
   static async revokeDevice(userId, deviceId) {
 
     const device =

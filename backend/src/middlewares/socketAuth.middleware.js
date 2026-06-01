@@ -2,21 +2,7 @@ import jwt from "jsonwebtoken";
 import config from "../config/index.js";
 import logger from "../config/logger.js";
 
-/**
- * Socket.IO Authentication Middleware
- *
- * Validates JWT tokens from socket.handshake.auth.token, socket.handshake.headers.authorization, or socket.handshake.query.token
- * Attaches userId to socket for subsequent operations
- *
- * Socket.IO flow:
- * 1. Client: new Socket(url, { auth: { token } }) or new Socket(url, { query: { token } })
- * 2. Server: middleware validates token
- * 3. Server: socket.userId set if valid
- * 4. Server: io.on('connection') called if middleware passes
- *
- * @param {Socket} socket - Socket.IO socket instance
- * @param {Function} next - Middleware callback (pass error or call with no args)
- */
+
 export const socketAuthMiddleware = (socket, next) => {
   try {
     // Extract token from socket auth object

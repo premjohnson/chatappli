@@ -2,7 +2,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import AuthService from '../services/auth.service.js';
 import config from '../config/index.js';
 
-/* ================= REGISTER ================= */
+// REGISTER  
 export const register = asyncHandler(async (req, res) => {
 
   const { user, accessToken, refreshToken } = 
@@ -26,7 +26,7 @@ export const register = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= LOGIN ================= */
+//  LOGIN  
 export const login = asyncHandler(async (req, res) => {
 
   const { email, password } = req.body;
@@ -51,7 +51,7 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= REFRESH ================= */
+//  REFRESH  
 export const refresh = asyncHandler(async (req, res) => {
 
   const refreshToken = req.cookies[config.session.name];
@@ -82,7 +82,7 @@ export const refresh = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= LOGOUT ================= */
+//LOGOUT 
 export const logout = asyncHandler(async (req, res) => {
 
   const refreshToken = req.cookies[config.session.name];
@@ -100,7 +100,7 @@ export const logout = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= LOGOUT ALL ================= */
+// LOGOUT ALL
 export const logoutAll = asyncHandler(async (req, res) => {
 
   await AuthService.logoutAll(req.user._id);
@@ -114,7 +114,7 @@ export const logoutAll = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= FORGOT PASSWORD ================= */
+// FORGOT PASSWORD 
 export const forgotPassword = asyncHandler(async (req, res) => {
 
   const { email } = req.body;
@@ -128,7 +128,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
 });
 
 
-/* ================= RESET PASSWORD ================= */
+// RESET PASSWORD 
 export const resetPassword = asyncHandler(async (req, res) => {
 
   const { email, otp, newPassword } = req.body;

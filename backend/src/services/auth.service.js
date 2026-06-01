@@ -18,10 +18,8 @@ import logger from '../config/logger.js';
 import crypto from 'crypto';
 
 class AuthService {
+//internal helper to convert duration string to seconds
 
-  /* =====================================================
-     INTERNAL TOKEN ISSUER
-  ===================================================== */
 
   static _getExpirySeconds(duration) {
     if (!duration) return 7 * 24 * 60 * 60;
@@ -74,9 +72,7 @@ class AuthService {
   }
 
 
-  /* =====================================================
-     REGISTER
-  ===================================================== */
+//register new user with optional avatar upload
 
   static async register(data, file) {
 
@@ -107,9 +103,7 @@ class AuthService {
   }
 
 
-  /* =====================================================
-     LOGIN
-  ===================================================== */
+//login user and issue tokens
 
   static async login(email, password) {
 
@@ -132,9 +126,7 @@ class AuthService {
   }
 
 
-  /* =====================================================
-     REFRESH TOKEN
-  ===================================================== */
+//refresh tokens
 
 static async refresh(oldToken) {
 
@@ -148,10 +140,7 @@ static async refresh(oldToken) {
   const lockKey =
     `lock:refresh:${payload.tokenId}`;
 
-  // =====================================================
-  // ACQUIRE DISTRIBUTED LOCK
-  // Prevent double refresh race conditions
-  // =====================================================
+
 
   const lock = await redis.set(
     lockKey,
@@ -167,9 +156,7 @@ static async refresh(oldToken) {
 
   try {
 
-    // =====================================================
-    // VERIFY REDIS SESSION
-    // =====================================================
+//session verifi
 
     const redisValue = await redis.get(redisKey);
 
@@ -183,9 +170,7 @@ static async refresh(oldToken) {
       throw new Error('Refresh token reuse detected');
     }
 
-    // =====================================================
-    // VERIFY TOKEN RECORD
-    // =====================================================
+    //token record check
 
     const tokenRecord = await RefreshToken.findOne({
       tokenId: payload.tokenId,
@@ -195,9 +180,7 @@ static async refresh(oldToken) {
     if (!tokenRecord)
       throw new Error('Token revoked');
 
-    // =====================================================
-    // VERIFY USER
-    // =====================================================
+//user check
 
     const user = await User.findById(payload.userId);
 
@@ -212,10 +195,7 @@ static async refresh(oldToken) {
       throw new Error('Account disabled');
     }
 
-    // =====================================================
-    // GENERATE NEW TOKENS FIRST
-    // SAFER THAN DELETING OLD FIRST
-    // =====================================================
+
 
     const accessToken =
       generateAccessToken(user);
@@ -234,9 +214,7 @@ static async refresh(oldToken) {
 
     const expirySeconds = this._getExpirySeconds(config.jwt.refreshExpires);
 
-    // =====================================================
-    // STORE NEW TOKEN FIRST
-    // =====================================================
+
 
     await redis.set(
       newRedisKey,
@@ -246,9 +224,6 @@ static async refresh(oldToken) {
       }
     );
 
-    // =====================================================
-    // SAVE NEW TOKEN RECORD
-    // =====================================================
 
     await RefreshToken.create({
       user: user._id,
@@ -259,9 +234,7 @@ static async refresh(oldToken) {
       )
     });
 
-    // =====================================================
-    // REVOKE OLD TOKEN
-    // =====================================================
+
 
     tokenRecord.isRevoked = true;
 
@@ -273,9 +246,7 @@ static async refresh(oldToken) {
 
     await redis.del(redisKey);
 
-    // =====================================================
-    // RETURN NEW TOKENS + UPDATED USER DATA
-    // =====================================================
+
 
     return {
       user: sanitizeUser(user),
@@ -285,18 +256,13 @@ static async refresh(oldToken) {
 
   } finally {
 
-    // =====================================================
-    // ALWAYS RELEASE LOCK
-    // =====================================================
+
 
     await redis.del(lockKey);
   }
 }
 
-
-  /* =====================================================
-     LOGOUT
-  ===================================================== */
+//logout
 
   static async logout(refreshToken) {
 
@@ -314,11 +280,7 @@ static async refresh(oldToken) {
     );
 
   }
-
-
-  /* =====================================================
-     LOGOUT ALL DEVICES
-  ===================================================== */
+//logout from all devices
 
   static async logoutAll(userId) {
 
@@ -344,9 +306,7 @@ static async refresh(oldToken) {
   }
 
 
-/* =====================================================
-   PASSWORD RESET REQUEST
-===================================================== */
+//request password reset OTP
 
   static async requestPasswordReset(email) {
 
@@ -395,9 +355,7 @@ static async refresh(oldToken) {
     };
   }
 
-  /* =====================================================
-     RESET PASSWORD
-  ===================================================== */
+//reset password using OTP
 
   static async resetPassword(email, otp, newPassword) {
 

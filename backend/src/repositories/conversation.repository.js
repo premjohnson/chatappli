@@ -72,10 +72,7 @@ static async updateOne(
   );
 
 }
-  /* =====================================================
-     ATOMIC PARTICIPANT ADD
-     Prevents duplicate users safely
-  ===================================================== */
+
 
   static async addParticipantAtomically(
     conversationId,

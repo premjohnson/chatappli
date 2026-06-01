@@ -2,9 +2,6 @@ import nodemailer from 'nodemailer';
 import config from '../config/index.js';
 import logger from '../config/logger.js';
 
-/**
- * Create SMTP transporter
- */
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
@@ -15,20 +12,16 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-/**
- * Verify transporter connection (only in development)
- */
+
 if (config.isDevelopment) {
   transporter.verify()
-    .then(() => logger.info('📧 Email server ready'))
+    .then(() => logger.info('Email server ready'))
     .catch((err) =>
       logger.error(`Email config error: ${err.message}`)
     );
 }
 
-/**
- * Generic email sender
- */
+
 const sendEmail = async ({ to, subject, html }) => {
   try {
     await transporter.sendMail({
@@ -43,9 +36,7 @@ const sendEmail = async ({ to, subject, html }) => {
   }
 };
 
-/**
- * OTP Email Template
- */
+
 export const sendOtpEmail = async (to, otp) => {
   const html = `
     <div style="font-family: Arial; padding: 20px;">

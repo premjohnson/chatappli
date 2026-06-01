@@ -2,11 +2,6 @@ import User from "../models/user.model.js"
 
 class UserService {
 
-  /**
-   * Search users by username
-   * Excludes the currently logged-in user
-   * Limits results for performance
-   */
   static async searchUsers(query, currentUserId) {
 
     const filter = {

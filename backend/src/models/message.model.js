@@ -85,7 +85,7 @@ const messageSchema = new Schema(
       default: true,
     },
 
-    /* ================= MESSAGE TYPE ================= */
+    //msg typ
 
     type: {
       type: String,
@@ -95,7 +95,7 @@ const messageSchema = new Schema(
 
     fileMeta: fileMetaSchema,
 
-    /* ================= THREADING ================= */
+    //reply forward
 
     replyTo: {
       type: Types.ObjectId,
@@ -107,11 +107,11 @@ const messageSchema = new Schema(
       ref: "Message",
     },
 
-    /* ================= REACTIONS ================= */
+    //reactions
 
     reactions: [reactionSchema],
 
-    /* ================= DELIVERY STATUS ================= */
+    //status tracking
 
     status: {
       type: String,
@@ -122,11 +122,11 @@ const messageSchema = new Schema(
     deliveredAt: Date,
     readAt: Date,
 
-    /* ================= DISAPPEARING MESSAGE ================= */
+    //disappearing messages
 
     expiresAt: Date,
 
-    /* ================= IDEMPOTENCY ================= */
+    //offline device
 
     clientMessageId: {
       type: String,
@@ -134,7 +134,7 @@ const messageSchema = new Schema(
       unique: true,
     },
 
-    /* ================= DELETE & MODERATION ================= */
+    //soft delete for everyone
 
     isDeletedForEveryone: {
       type: Boolean,
@@ -151,12 +151,12 @@ const messageSchema = new Schema(
       },
     ],
 
-    /* ================= EDIT SUPPORT ================= */
+    //edit history
 
     editHistory: [editHistorySchema],
     editedAt: Date,
 
-    /* ================= DEVICE TRACKING ================= */
+    //sender device tracking for push notifications
 
     senderDeviceId: String,
   },
@@ -165,26 +165,22 @@ const messageSchema = new Schema(
   }
 );
 
-/* =========================================================
-   PRODUCTION INDEXES
-========================================================= */
 
-/* 🔥 Primary chat pagination index (most important) */
+
+
 messageSchema.index({ conversation: 1, createdAt: -1 });
 
-/* 🔥 Sender activity tracking */
 messageSchema.index({ sender: 1, createdAt: -1 });
 
-/* 🔥 Fast unread lookup */
+
 messageSchema.index({ receiver: 1, status: 1 });
 
-/* 🔥 Soft delete optimization */
+
 messageSchema.index({ isDeletedForEveryone: 1 });
 
-/* 🔥 TTL for disappearing messages */
+
 messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-/* 🔥 Reaction lookup optimization */
 messageSchema.index({ _id: 1, "reactions.user": 1 });
 
 

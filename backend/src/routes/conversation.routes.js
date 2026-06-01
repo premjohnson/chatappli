@@ -15,7 +15,7 @@ import { uploadAvatar } from '../middlewares/upload.middleware.js';
 
 const router = express.Router();
 
-/* ================= ALL ROUTES PROTECTED ================= */
+
 router.use(protect);
 
 /* ================= CREATE ================= */

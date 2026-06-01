@@ -35,6 +35,6 @@ export const getRedisClient = () => {
 export const disconnectRedis = async () => {
   if (redisClient?.isOpen) {
     await redisClient.quit();
-    logger.info('🔴 Redis client disconnected');
+    logger.info('Redis client disconnected');
   }
 };

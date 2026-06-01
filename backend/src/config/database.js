@@ -30,7 +30,7 @@ const connectDB = async () => {
 };
 
 
-//Graceful shutdown for database 
+//shutdown for database 
 
 export const closeDB = async () => {
     try{

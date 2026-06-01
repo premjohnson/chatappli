@@ -2,10 +2,8 @@ import mongoose from "mongoose";
 
 class TransactionManager {
 
-  /**
-   * Execute database operations inside a MongoDB transaction
-   * Automatically commits or rolls back.
-   */
+  //Execute database operations inside a MongoDB transaction
+
   static async run(callback) {
 
     const session = await mongoose.startSession();
@@ -35,10 +33,6 @@ class TransactionManager {
   }
 
 
-  /**
-   * Helper for running code WITHOUT a transaction
-   * but keeping the same interface.
-   */
   static async runWithoutTransaction(callback) {
 
     return callback(null);
@@ -46,9 +40,6 @@ class TransactionManager {
   }
 
 
-  /**
-   * Utility to attach session to mongoose queries safely
-   */
   static attachSession(query, session) {
 
     if (session) {

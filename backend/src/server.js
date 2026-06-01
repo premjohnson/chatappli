@@ -14,7 +14,7 @@ let server;
 const gracefulShutdown = async (signal) => {
   logger.info(`${signal} received. Starting graceful shutdown...`);
 
-  // 1. Close HTTP server (stops accepting new requests)
+  
   if (server) {
     await new Promise((resolve) => {
       server.close(() => {
@@ -23,14 +23,8 @@ const gracefulShutdown = async (signal) => {
       });
     });
   }
-
-  // 2. Close Socket.IO connections and its Redis clients
   await closeSocket();
-
-  // 3. Disconnect Redis
   await disconnectRedis();
-
-  // 4. Close DB connection
   await closeDB();
 
   logger.info("Graceful shutdown completed.");
@@ -44,7 +38,7 @@ const startServer = async () => {
 
     server = http.createServer(app);
 
-    // ✅ Initialize socket properly
+  
     await initSocket(server);
 
     server.listen(config.port, () => {

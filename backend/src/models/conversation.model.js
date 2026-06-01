@@ -123,8 +123,7 @@ const conversationSchema = new Schema(
       type: Types.ObjectId,
       ref: 'User'
     },
-
-    /* ================= LAST MESSAGE ================= */
+//last msg preview
 
     lastMessage: {
       type: Types.ObjectId,
@@ -136,7 +135,7 @@ const conversationSchema = new Schema(
       index: true
     },
 
-    /* ================= ENCRYPTION ================= */
+    //encryption 
 
     encryptionMeta: {
       sharedKeyId: String,
@@ -146,7 +145,7 @@ const conversationSchema = new Schema(
       }
     },
 
-    /* ================= MODERATION ================= */
+    //moderation
 
     deletedFor: [
       {
@@ -163,7 +162,7 @@ const conversationSchema = new Schema(
   { timestamps: true }
 );
 
-/* ================= INDEXES ================= */
+//indexes
 
 conversationSchema.index({ 'participants.user': 1, lastMessageAt: -1 });
 

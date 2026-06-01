@@ -15,10 +15,7 @@ import {
 
 class SocketCleanupService {
 
-  /* =====================================================
-     HANDLE SOCKET DISCONNECT CLEANUP
-  ===================================================== */
-
+// Cleanup method to handle socket disconnections and related state cleanup
   static async cleanup(
     io,
     socket,
@@ -34,10 +31,6 @@ class SocketCleanupService {
        | User ${userId}
        | Reason: ${reason}`
     );
-
-    // ============================================
-    // CLEANUP GHOST TYPING STATES
-    // ============================================
 
     if (
       socket.typingConversations
@@ -61,9 +54,7 @@ class SocketCleanupService {
       socket.typingConversations.clear();
     }
 
-    // ============================================
-    // DECREMENT ACTIVE CONNECTIONS
-    // ============================================
+// Decrement connection count and possibly set user offline
 
     const count =
 
@@ -71,10 +62,7 @@ class SocketCleanupService {
         .decrementConnections(
           userId
         );
-
-    // ============================================
-    // DEBOUNCE OFFLINE EVENT
-    // ============================================
+// If no more active connections, set user offline and emit presence update
 
     if (count === 0) {
 
@@ -88,10 +76,6 @@ class SocketCleanupService {
               .getConnectionCount(
                 userId
               );
-
-          // ============================================
-          // USER STILL OFFLINE
-          // ============================================
 
           if (latestCount === 0) {
             

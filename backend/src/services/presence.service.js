@@ -3,34 +3,25 @@ from "../config/redis.js";
 
 class PresenceService {
 
-  // ============================================
-  // GLOBAL ONLINE USERS SET
-  // ============================================
+// Redis set key for online users
 
   static ONLINE_SET =
     "presence:online_users";
 
-  // ============================================
-  // LAST SEEN KEY
-  // ============================================
-
+// Helper methods to generate Redis keys for last seen and connection count
   static getLastSeenKey(userId) {
 
     return `presence:lastSeen:${userId}`;
   }
 
-  // ============================================
-  // CONNECTION COUNT KEY
-  // ============================================
 
+// Helper method to generate Redis key for active connections count
   static getConnectionsKey(userId) {
 
     return `presence:connections:${userId}`;
   }
 
-  /* =====================================================
-     USER ONLINE
-  ===================================================== */
+// Set user as online
 
   static async setOnline(userId) {
 
@@ -46,10 +37,7 @@ class PresenceService {
     );
   }
 
-  /* =====================================================
-     USER OFFLINE
-  ===================================================== */
-
+// Set user as offline and record last seen timestamp
   static async setOffline(userId) {
 
     const redis =
@@ -69,10 +57,7 @@ class PresenceService {
     );
   }
 
-  /* =====================================================
-     CHECK ONLINE
-  ===================================================== */
-
+// Check if user is online
   static async isOnline(userId) {
 
     const redis =
@@ -87,10 +72,8 @@ class PresenceService {
     );
   }
 
-  /* =====================================================
-     GET LAST SEEN
-  ===================================================== */
 
+// Get last seen timestamp for a user
   static async getLastSeen(userId) {
 
     const redis =
@@ -104,10 +87,8 @@ class PresenceService {
     );
   }
 
-  /* =====================================================
-     INCREMENT ACTIVE CONNECTIONS
-  ===================================================== */
 
+// Increment active connection count for a user and set online if first connection
   static async incrementConnections(
     userId
   ) {
@@ -126,20 +107,12 @@ class PresenceService {
     const count =
       await redis.incr(key);
 
-    // ============================================
-    // SAFETY TTL
-    // protects against crashes
-    // ============================================
 
     await redis.expire(
       key,
       60 * 60
     );
 
-    // ============================================
-    // FIRST ACTIVE CONNECTION
-    // USER BECOMES ONLINE
-    // ============================================
 
     if (count === 1) {
 
@@ -151,10 +124,7 @@ class PresenceService {
     return count;
   }
 
-  /* =====================================================
-     DECREMENT ACTIVE CONNECTIONS
-  ===================================================== */
-
+// Decrement active connection count for a user and set offline if no more connections
   static async decrementConnections(
     userId
   ) {
@@ -173,10 +143,6 @@ class PresenceService {
     const count =
       await redis.decr(key);
 
-    // ============================================
-    // LAST ACTIVE CONNECTION CLOSED
-    // USER BECOMES OFFLINE
-    // ============================================
 
     if (count <= 0) {
 
@@ -192,10 +158,8 @@ class PresenceService {
     return count;
   }
 
-  /* =====================================================
-     GET CONNECTION COUNT
-  ===================================================== */
 
+// Get current active connection count for a user
   static async getConnectionCount(userId) {
     const redis = getRedisClient();
     if (!redis?.isOpen) return 0;

@@ -12,7 +12,6 @@ const router = express.Router();
 /* ================= ALL ROUTES PROTECTED ================= */
 router.use(protect);
 
-/* ================= DEVICE ================= */
 
 router.post("/", registerDevice);
 

@@ -1,13 +1,8 @@
 import multer from 'multer';
 
-/**
- * Memory storage (no disk writes)
- */
 const storage = multer.memoryStorage();
 
-/**
- * Allowed MIME types
- */
+
 const allowedMimeTypes = [
   'image/jpeg',
   'image/png',
@@ -15,9 +10,7 @@ const allowedMimeTypes = [
   'image/jpg'
 ];
 
-/**
- * File filter
- */
+
 const fileFilter = (req, file, cb) => {
   if (!allowedMimeTypes.includes(file.mimetype)) {
     return cb(new Error('Invalid file type. Only JPEG, PNG, WEBP allowed.'), false);
@@ -25,9 +18,7 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-/**
- * Multer instance
- */
+
 const upload = multer({
   storage,
   limits: {
@@ -37,7 +28,5 @@ const upload = multer({
   fileFilter
 });
 
-/**
- * Single avatar upload
- */
+
 export const uploadAvatar = upload.single('avatar');

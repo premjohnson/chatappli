@@ -1,7 +1,7 @@
 import ConversationService from '../services/conversation.service.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
-/* ================= CREATE PRIVATE ================= */
+//CREATE PRIVATE CONV
 
 export const createPrivateConversation = asyncHandler(async (req, res) => {
 
@@ -25,7 +25,7 @@ export const createPrivateConversation = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= CREATE GROUP ================= */
+//CREATE GROUP CONV
 
 export const createGroupConversation = asyncHandler(async (req, res) => {
 
@@ -54,7 +54,7 @@ export const createGroupConversation = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= UPDATE GROUP ================= */
+//UPDATE GROUP CONV 
 
 export const updateGroupInfo = asyncHandler(async (req, res) => {
 
@@ -74,7 +74,7 @@ export const updateGroupInfo = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= ADD MEMBER ================= */
+//ADD MEMBE CONV
 
 export const addParticipant = asyncHandler(async (req, res) => {
 
@@ -100,7 +100,7 @@ export const addParticipant = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= REMOVE MEMBER ================= */
+// REMOVE MEMBER CONV
 
 export const removeParticipant = asyncHandler(async (req, res) => {
 
@@ -119,7 +119,7 @@ export const removeParticipant = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= PROMOTE ADMIN ================= */
+// PROMOTE ADMIN CONV 
 
 export const promoteToAdmin = asyncHandler(async (req, res) => {
 
@@ -139,7 +139,7 @@ export const promoteToAdmin = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= GET USER CONVERSATIONS ================= */
+//GET USER CONVERSATIONS CONV
 
 export const getMyConversations = asyncHandler(async (req, res) => {
 
@@ -157,7 +157,7 @@ export const getMyConversations = asyncHandler(async (req, res) => {
   });
 });
 
-/* ================= SOFT DELETE ================= */
+//SOFT DELETE CONV
 
 export const deleteConversationForMe = asyncHandler(async (req, res) => {
 

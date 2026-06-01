@@ -55,7 +55,7 @@ app.use("/api/v1/search", users);
 
 app.use(notFound);
 
-//global error handler
+
 app.use(errorHandler);  
 
 

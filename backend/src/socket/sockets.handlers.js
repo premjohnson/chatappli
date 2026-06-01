@@ -17,11 +17,8 @@ export const  registerSocketHandlers = async  (io, socket) => {
 
   logger.info(`Registering handlers for user ${userId}`);
 
-  /* join personal room for multi-device sync */
-
   socket.join(`user:${userId}`);
 
-  /* join conversation rooms for scoped broadcasts */
   try {
     const conversations = await mongoose.model("Conversation").find({
       "participants.user": userId

@@ -9,9 +9,7 @@ import { ERROR_CODES } from "../utils/errorConstants.js";
 
 class MessageService {
 
-  /* =======================================================
-     SEND MESSAGE
-  ======================================================= */
+//send message in a conversation
 
   static async sendMessage(userId, payload) {
 
@@ -94,7 +92,6 @@ class MessageService {
 
       await ConversationRepository.save(conversation, session);
 
-      /* Atomic unread count increment for the receiver */
       await mongoose.model("Conversation").updateOne(
         { 
           _id: conversationId,
@@ -121,9 +118,7 @@ class MessageService {
 
   }
 
-  /* =======================================================
-     GET MESSAGES
-  ======================================================= */
+//get messages in a conversation with pagination (cursor-based)
 
   static async getMessages(conversationId, cursor = null, limit = 20) {
 
@@ -150,9 +145,7 @@ class MessageService {
 
   }
 
-  /* =======================================================
-     EDIT MESSAGE
-  ======================================================= */
+//edit message (only within 15 minutes of sending and only by sender)
 
   static async editMessage(messageId, userId, encryptedContent, nonce) {
 
@@ -184,10 +177,7 @@ class MessageService {
     return MessageRepository.save(message);
 
   }
-
-  /* =======================================================
-     DELETE FOR ME
-  ======================================================= */
+//delete message for self (soft delete)
 
   static async deleteForMe(messageId, userId) {
 
@@ -206,9 +196,7 @@ class MessageService {
 
   }
 
-  /* =======================================================
-     DELETE FOR EVERYONE
-  ======================================================= */
+//delete message for everyone (only within 15 minutes of sending and only by sender)
 
   static async deleteForEveryone(messageId, userId) {
 
@@ -240,9 +228,7 @@ class MessageService {
 
   }
 
-  /* =======================================================
-     MARK AS READ
-  ======================================================= */
+//marks as read msg
 
   static async markAsRead(conversationId, userId) {
 

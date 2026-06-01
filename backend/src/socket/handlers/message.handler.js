@@ -2,10 +2,7 @@ import MessageService from "../../services/message.service.js";
 import { MESSAGE_EVENTS } from "../events/message.events.js";
 
 export default function messageHandler(io, socket) {
-
-  /* =======================================================
-     SEND MESSAGE
-  ======================================================= */
+// Handle sending messages
 
   socket.on(MESSAGE_EVENTS.SEND_MESSAGE, async (payload) => {
 
@@ -53,9 +50,7 @@ export default function messageHandler(io, socket) {
   });
 
 
-  /* =======================================================
-     MARK MESSAGES AS READ
-  ======================================================= */
+// Handle marking messages as read
 
   socket.on(MESSAGE_EVENTS.MESSAGE_READ, async ({ conversationId }) => {
 

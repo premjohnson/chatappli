@@ -5,7 +5,7 @@ import { healthCheck } from '../controllers/health.controller.js';
 const router = express.Router();
 
 
-// Health Check Endpoint
+//health check route
 router.get('/', asyncHandler(healthCheck));
 
 export default router;

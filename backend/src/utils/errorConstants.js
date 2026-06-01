@@ -1,8 +1,4 @@
-/**
- * Application Error Constants
- * Centralized source of truth for all error messages and codes.
- */
-
+/// Centralized error codes and messages for consistent error handling across the application.
 export const ERROR_CODES = {
   // Auth Errors
   UNAUTHORIZED: "UNAUTHORIZED",

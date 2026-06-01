@@ -2,9 +2,8 @@ import asyncHandler from "../utils/asyncHandler.js";
 import mongoose from "mongoose";
 import MessageService from "../services/message.service.js";
 
-/* =======================================================
-   SEND MESSAGE
-======================================================= */
+
+//SEND MESSAGE
 
 export const sendMessage = asyncHandler(async (req, res) => {
 
@@ -34,9 +33,9 @@ export const sendMessage = asyncHandler(async (req, res) => {
 });
 
 
-/* =======================================================
-   GET MESSAGES
-======================================================= */
+
+//GET MESSAGES
+
 
 export const getMessages = asyncHandler(async (req, res) => {
 
@@ -66,9 +65,8 @@ export const getMessages = asyncHandler(async (req, res) => {
 });
 
 
-/* =======================================================
-   EDIT MESSAGE
-======================================================= */
+//EDIT MESSAGE
+
 
 export const editMessage = asyncHandler(async (req, res) => {
 
@@ -98,9 +96,9 @@ export const editMessage = asyncHandler(async (req, res) => {
 });
 
 
-/* =======================================================
-   MARK AS READ
-======================================================= */
+
+//MARK AS READ
+
 
 export const markAsRead = asyncHandler(async (req, res) => {
 
@@ -127,9 +125,9 @@ export const markAsRead = asyncHandler(async (req, res) => {
 });
 
 
-/* =======================================================
-   DELETE FOR ME
-======================================================= */
+
+//DELETE FOR ME
+
 
 export const deleteForMe = asyncHandler(async (req, res) => {
 
@@ -143,9 +141,8 @@ export const deleteForMe = asyncHandler(async (req, res) => {
 });
 
 
-/* =======================================================
-   DELETE FOR EVERYONE
-======================================================= */
+//DELETE FOR EVERYONE
+
 
 export const deleteForEveryone = asyncHandler(async (req, res) => {
 
