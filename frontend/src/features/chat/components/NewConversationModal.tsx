@@ -3,6 +3,11 @@ import { useSearchUsers } from "../../users/hooks/useSearchUsers"
 import { useCreatePrivateConversation } from "../../conversation/hooks/useCreatePrivateConversation"
 import { useChatStore } from "../../../store/chat.store"
 import type { User } from "../../users/types/user.types"
+import { Modal } from "../../../components/ui/Modal"
+import { Input } from "../../../components/ui/Input"
+import { Button } from "../../../components/ui/Button"
+import { Search, Check } from "lucide-react"
+import { cn } from "../../../utils/cn"
 
 interface NewConversationModalProps {
   isOpen: boolean
@@ -13,7 +18,6 @@ export default function NewConversationModal({
   isOpen,
   onClose
 }: NewConversationModalProps) {
-
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
@@ -21,21 +25,15 @@ export default function NewConversationModal({
   const { mutate: createConversation, isPending: isCreating } = useCreatePrivateConversation()
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
 
-  const handleSelectUser = (user: User) => {
-    setSelectedUser(user)
-  }
+  const handleSelectUser = (user: User) => setSelectedUser(user)
 
   const handleCreateConversation = async () => {
     if (!selectedUser) return
-
     createConversation(
       { targetUserId: selectedUser._id },
       {
         onSuccess: (conversation) => {
-          // Set the newly created conversation as active
           setActiveConversation(conversation._id as string)
-
-          // Reset modal state and close
           setSearchQuery("")
           setSelectedUser(null)
           onClose()
@@ -44,65 +42,38 @@ export default function NewConversationModal({
     )
   }
 
-  if (!isOpen) return null
-
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        className="fixed inset-0 backdrop-blur-md bg-black/30 z-40 transition-opacity"
-        style={{
-          opacity: isOpen ? 1 : 0,
-          pointerEvents: isOpen ? "auto" : "none"
-        }}
-      />
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title="New Conversation"
+      className="max-w-md"
+    >
+      <div className="space-y-6">
+        <Input
+          placeholder="Search by username..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          disabled={usersLoading || isCreating}
+          icon={<Search className="h-5 w-5" />}
+        />
 
-      {/* Modal - Glass Morphism */}
-      <div
-        className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-md rounded-2xl bg-white/70 backdrop-blur-xl border border-white/30 p-6"
-        style={{
-          boxShadow: "0 20px 60px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.5)"
-        }}
-      >
-        {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
-            Start New Conversation
-          </h2>
-          
-          {/* Search Input */}
-          <input
-            type="text"
-            placeholder="Search users by username..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            disabled={usersLoading || isCreating}
-            className="w-full px-4 py-2 rounded-lg bg-white/40 backdrop-blur-sm border border-white/30 text-gray-900 placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white/60 focus:border-white/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-        </div>
-
-        {/* Users List */}
-        <div className="mb-6 max-h-72 overflow-y-auto space-y-2">
+        <div className="max-h-[300px] overflow-y-auto custom-scrollbar pr-1 space-y-2">
           {searchQuery.length < 2 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-sm">
-                Type at least 2 characters to search users
+            <div className="text-center py-10 px-4">
+              <p className="text-gray-400 text-sm font-medium">
+                Enter at least 2 characters to find someone...
               </p>
             </div>
           ) : usersLoading ? (
-            <div className="flex justify-center py-8">
-              <div className="flex flex-col items-center gap-2">
-                <div className="animate-spin">
-                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full" />
-                </div>
-                <p className="text-sm text-gray-600">Searching users...</p>
-              </div>
+            <div className="flex flex-col items-center justify-center py-10 gap-3">
+              <div className="w-8 h-8 border-3 border-brand-primary/20 border-t-brand-primary animate-spin rounded-full" />
+              <p className="text-sm text-gray-500 font-medium">Finding users...</p>
             </div>
           ) : searchResults.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500 text-sm">
-                No users found matching "{searchQuery}"
+            <div className="text-center py-10 px-4">
+              <p className="text-gray-400 text-sm font-medium">
+                No users found for "{searchQuery}"
               </p>
             </div>
           ) : (
@@ -111,52 +82,29 @@ export default function NewConversationModal({
                 key={user._id}
                 onClick={() => handleSelectUser(user)}
                 disabled={isCreating}
-                className={`
-                  w-full flex items-center gap-3 p-3 rounded-lg
-                  transition-all duration-200
-                  text-left
-                  ${selectedUser?._id === user._id
-                    ? "bg-blue-400/30 border border-blue-400/50 backdrop-blur-sm"
-                    : "bg-white/20 border border-white/30 hover:bg-white/30 hover:border-white/40 backdrop-blur-sm"
-                  }
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                `}
-              >
-                {/* Avatar */}
-                {user.avatar && (
-                  <img
-                    src={user.avatar}
-                    alt={user.username}
-                    className="w-10 h-10 rounded-full flex-shrink-0 object-cover"
-                  />
+                className={cn(
+                  "w-full flex items-center gap-3 p-3 rounded-2xl transition-all duration-200 text-left group",
+                  selectedUser?._id === user._id
+                    ? "bg-brand-primary/10 ring-1 ring-brand-primary/30"
+                    : "hover:bg-brand-primary/5"
                 )}
-
-                {/* User Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
-                    {user.username}
-                  </p>
-                  {user.email && (
-                    <p className="text-xs text-gray-500 truncate">
-                      {user.email}
-                    </p>
+              >
+                <div className="w-11 h-11 rounded-xl bg-brand-primary/5 flex items-center justify-center overflow-hidden border border-brand-primary/10">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="font-bold text-brand-primary">{user.username.charAt(0).toUpperCase()}</span>
                   )}
                 </div>
 
-                {/* Selection Indicator */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-900 truncate tracking-tight">{user.username}</p>
+                  <p className="text-xs text-gray-500 truncate font-medium">{user.email || 'No email provided'}</p>
+                </div>
+
                 {selectedUser?._id === user._id && (
-                  <div className="flex-shrink-0 text-blue-500">
-                    <svg
-                      className="w-5 h-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                  <div className="w-6 h-6 rounded-full bg-brand-primary flex items-center justify-center text-white shadow-sm">
+                    <Check className="h-4 w-4" />
                   </div>
                 )}
               </button>
@@ -164,33 +112,25 @@ export default function NewConversationModal({
           )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3">
-          <button
+        <div className="flex gap-3 pt-2">
+          <Button
+            variant="ghost"
             onClick={onClose}
             disabled={isCreating}
-            className="flex-1 px-4 py-2 rounded-lg bg-white/30 backdrop-blur-sm border border-white/30 text-gray-900 font-medium hover:bg-white/40 hover:border-white/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleCreateConversation}
             disabled={!selectedUser || isCreating}
-            className="flex-1 px-4 py-2 rounded-lg bg-blue-500/80 backdrop-blur-sm border border-blue-400/50 text-white font-medium hover:bg-blue-600/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            isLoading={isCreating}
+            className="flex-1"
           >
-            {isCreating ? (
-              <>
-                <div className="animate-spin">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-                </div>
-                Creating...
-              </>
-            ) : (
-              "Start Chat"
-            )}
-          </button>
+            Start Chat
+          </Button>
         </div>
       </div>
-    </>
+    </Modal>
   )
 }

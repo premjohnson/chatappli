@@ -9,22 +9,22 @@ const connectDB = async () => {
 
         const connDB = await mongoose.connect(config.database.uri);
 
-        logger.info(`✅ MongoDB Connected: ${connDB.connection.host}`);
+        logger.info(`MongoDB Connected: ${connDB.connection.host}`);
 
         mongoose.connection.on('disconnected', () => {
-            logger.warn('⚠️ MongoDB Disconnected');
+            logger.warn('MongoDB Disconnected');
         });
 
         mongoose.connection.on('reconnected', () => {
-            logger.info('🔄 MongoDB Reconnected');
+            logger.info('MongoDB Reconnected');
         });
 
         mongoose.connection.on('error', (err) => {
-            logger.error(`❌ MongoDB Connection Error: ${err}`);
+            logger.error(`MongoDB Connection Error: ${err}`);
         });
 
     } catch (error) {
-        logger.error(`❌ MongoDB Connection Failed: ${error}`);
+        logger.error(`MongoDB Connection Failed: ${error}`);
         process.exit(1);
     }
 };

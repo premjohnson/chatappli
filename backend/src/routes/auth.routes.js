@@ -24,7 +24,7 @@ const router = express.Router();
 
 router.post('/register', registerLimiter, uploadAvatar, register);
 router.post('/login', loginLimiter, login);
-router.post('/refresh', refresh);
+router.post('/refresh', refreshLimiter, refresh);
 router.post('/logout', logout);
 router.post('/logout-all', protect, logoutAll);
 

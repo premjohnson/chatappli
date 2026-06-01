@@ -15,7 +15,7 @@ export const connectRedis = async () => {
     });
 
     redisClient.on('connect', () => {
-      logger.info('✅ Redis client connected');
+      logger.info('Redis client connected');
     });
 
     await redisClient.connect();

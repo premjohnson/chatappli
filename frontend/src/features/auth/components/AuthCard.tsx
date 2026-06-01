@@ -1,32 +1,40 @@
-import type { ReactNode } from "react"
+import * as React from 'react';
+import { GlassCard } from '../../../components/ui/GlassCard';
+import { motion } from 'framer-motion';
 
 interface AuthCardProps {
-    title: string
-    subtitle: string
-    children: ReactNode
-    className?: string
+  children: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  className?: string;
 }
 
-export default function AuthCard({ title, subtitle, className = "p-8 sm:p-10", children }: AuthCardProps) {
-    return (
-        <div
-            className={`w-full max-w-md ${className} bg-[#eef2f6] rounded-[24px]`}
-            style={{
-                boxShadow: "8px 8px 16px rgba(0,0,0,0.08), -8px -8px 16px rgba(255,255,255,0.9)"
-            }}
-        >
-            <div className="text-center mb-8">
-                <h1 className="text-3xl sm:text-4xl font-bold text-[#1f2937] tracking-tight pb-2">
-                    {title}
-                </h1>
-                <p className="text-sm sm:text-base text-[#6b7280]">
-                    {subtitle}
-                </p>
-            </div>
-
-            <div className="space-y-6">
-                {children}
-            </div>
-        </div>
-    )
+export default function AuthCard({ children, title, subtitle, className }: AuthCardProps) {
+  return (
+    <GlassCard className={className}>
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3, duration: 1 }}
+        className="mb-8 md:mb-10 text-center"
+      >
+        <h1 className="text-[2.25rem] md:text-[2.75rem] font-bold text-gray-900 mb-2 md:mb-3 tracking-tight leading-none text-restrained">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="text-gray-900/40 font-bold text-[10px] uppercase tracking-[0.15em] leading-relaxed max-w-[280px] mx-auto opacity-80">
+            {subtitle}
+          </p>
+        )}
+      </motion.div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.6, duration: 1.5 }}
+        className="w-full"
+      >
+        {children}
+      </motion.div>
+    </GlassCard>
+  );
 }

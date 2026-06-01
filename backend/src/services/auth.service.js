@@ -1,5 +1,6 @@
 import User from '../models/user.model.js';
 import RefreshToken from '../models/refreshToken.model.js';
+import config from '../config/index.js';
 
 import {
   generateAccessToken,
@@ -12,7 +13,8 @@ import { getRedisClient } from '../config/redis.js';
 import { sendOtpEmail } from '../utils/email.util.js';
 
 import sanitizeUser from '../helper/user.help.js';
-
+import maskEmail from '../helper/mask.helper.js';
+import logger from '../config/logger.js';
 import crypto from 'crypto';
 
 class AuthService {
@@ -20,6 +22,25 @@ class AuthService {
   /* =====================================================
      INTERNAL TOKEN ISSUER
   ===================================================== */
+
+  static _getExpirySeconds(duration) {
+    if (!duration) return 7 * 24 * 60 * 60;
+    if (typeof duration === 'number') return duration;
+    
+    const match = duration.match(/^(\d+)([smhd])$/);
+    if (!match) return 7 * 24 * 60 * 60;
+    
+    const value = parseInt(match[1]);
+    const unit = match[2];
+    
+    switch (unit) {
+      case 's': return value;
+      case 'm': return value * 60;
+      case 'h': return value * 3600;
+      case 'd': return value * 86400;
+      default: return value;
+    }
+  }
 
   static async issueAuthTokens(user) {
 
@@ -30,17 +51,19 @@ class AuthService {
     const { token, tokenId, tokenFamily } =
       generateRefreshToken(user);
 
+    const expirySeconds = this._getExpirySeconds(config.jwt.refreshExpires);
+
     await redis.set(
       `refresh:${user._id}:${tokenId}`,
       tokenFamily,
-      { EX: 7 * 24 * 60 * 60 }
+      { EX: expirySeconds }
     );
 
     await RefreshToken.create({
       user: user._id,
       tokenId,
       tokenFamily,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(Date.now() + expirySeconds * 1000)
     });
 
     return {
@@ -113,14 +136,40 @@ class AuthService {
      REFRESH TOKEN
   ===================================================== */
 
-  static async refresh(oldToken) {
+static async refresh(oldToken) {
 
-    const redis = getRedisClient();
+  const redis = getRedisClient();
 
-    const payload = verifyRefreshToken(oldToken);
+  const payload = verifyRefreshToken(oldToken);
 
-    const redisKey =
-      `refresh:${payload.userId}:${payload.tokenId}`;
+  const redisKey =
+    `refresh:${payload.userId}:${payload.tokenId}`;
+
+  const lockKey =
+    `lock:refresh:${payload.tokenId}`;
+
+  // =====================================================
+  // ACQUIRE DISTRIBUTED LOCK
+  // Prevent double refresh race conditions
+  // =====================================================
+
+  const lock = await redis.set(
+    lockKey,
+    'locked',
+    {
+      NX: true,
+      PX: 5000 // auto-expire lock after 5 sec
+    }
+  );
+
+  if (!lock)
+    throw new Error('Refresh already in progress');
+
+  try {
+
+    // =====================================================
+    // VERIFY REDIS SESSION
+    // =====================================================
 
     const redisValue = await redis.get(redisKey);
 
@@ -134,6 +183,10 @@ class AuthService {
       throw new Error('Refresh token reuse detected');
     }
 
+    // =====================================================
+    // VERIFY TOKEN RECORD
+    // =====================================================
+
     const tokenRecord = await RefreshToken.findOne({
       tokenId: payload.tokenId,
       isRevoked: false
@@ -142,39 +195,103 @@ class AuthService {
     if (!tokenRecord)
       throw new Error('Token revoked');
 
+    // =====================================================
+    // VERIFY USER
+    // =====================================================
+
     const user = await User.findById(payload.userId);
 
-    if (!user || user.tokenVersion !== payload.tokenVersion)
+    if (
+      !user ||
+      user.tokenVersion !== payload.tokenVersion
+    ) {
       throw new Error('Token version mismatch');
+    }
 
-    await redis.del(redisKey);
+    if (!user.isActive) {
+      throw new Error('Account disabled');
+    }
 
-    tokenRecord.isRevoked = true;
-    await tokenRecord.save();
+    // =====================================================
+    // GENERATE NEW TOKENS FIRST
+    // SAFER THAN DELETING OLD FIRST
+    // =====================================================
 
-    const accessToken = generateAccessToken(user);
+    const accessToken =
+      generateAccessToken(user);
 
-    const { token, tokenId, tokenFamily } =
-      generateRefreshToken(user, payload.tokenFamily);
+    const {
+      token,
+      tokenId,
+      tokenFamily
+    } = generateRefreshToken(
+      user,
+      payload.tokenFamily
+    );
+
+    const newRedisKey =
+      `refresh:${user._id}:${tokenId}`;
+
+    const expirySeconds = this._getExpirySeconds(config.jwt.refreshExpires);
+
+    // =====================================================
+    // STORE NEW TOKEN FIRST
+    // =====================================================
 
     await redis.set(
-      `refresh:${user._id}:${tokenId}`,
+      newRedisKey,
       tokenFamily,
-      { EX: 7 * 24 * 60 * 60 }
+      {
+        EX: expirySeconds
+      }
     );
+
+    // =====================================================
+    // SAVE NEW TOKEN RECORD
+    // =====================================================
 
     await RefreshToken.create({
       user: user._id,
       tokenId,
       tokenFamily,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      expiresAt: new Date(
+        Date.now() + expirySeconds * 1000
+      )
     });
 
+    // =====================================================
+    // REVOKE OLD TOKEN
+    // =====================================================
+
+    tokenRecord.isRevoked = true;
+
+    await tokenRecord.save();
+
+    // =====================================================
+    // DELETE OLD REDIS KEY LAST
+    // =====================================================
+
+    await redis.del(redisKey);
+
+    // =====================================================
+    // RETURN NEW TOKENS + UPDATED USER DATA
+    // =====================================================
+
     return {
+      user: sanitizeUser(user),
       accessToken,
       refreshToken: token
     };
+
+  } finally {
+
+    // =====================================================
+    // ALWAYS RELEASE LOCK
+    // =====================================================
+
+    await redis.del(lockKey);
   }
+}
 
 
   /* =====================================================
@@ -227,24 +344,56 @@ class AuthService {
   }
 
 
-  /* =====================================================
-     PASSWORD RESET REQUEST
-  ===================================================== */
+/* =====================================================
+   PASSWORD RESET REQUEST
+===================================================== */
 
   static async requestPasswordReset(email) {
 
-    const user = await User.findOne({ email });
+    const normalizedEmail =
+      email.trim().toLowerCase();
 
-    if (!user) return;
+    const user = await User.findOne({
+      email: normalizedEmail
+    });
+
+    // Prevent user enumeration + timing attacks
+    if (!user) {
+
+      // Simulate cryptographic workload
+      crypto.pbkdf2Sync(
+        normalizedEmail,
+        'dummy-salt',
+        100000,
+        64,
+        'sha512'
+      );
+
+      logger.warn(
+        `Password reset requested for unknown email: ${maskEmail(normalizedEmail)}`
+      );
+
+      return {
+        success: true
+      };
+    }
 
     const otp = user.generatePasswordResetOtp();
 
     await user.save();
 
+    // TODO:
+    // Move email sending to background queue later
     await sendOtpEmail(user.email, otp);
 
-  }
+    logger.info(
+      `Password reset OTP sent to ${maskEmail(user.email)}`
+    );
 
+    return {
+      success: true
+    };
+  }
 
   /* =====================================================
      RESET PASSWORD
@@ -252,33 +401,34 @@ class AuthService {
 
   static async resetPassword(email, otp, newPassword) {
 
-    const user = await User
-      .findOne({ email })
-      .select('+password');
+    const user = await User.findOne({
+      email: email.trim().toLowerCase()
+    });
 
-    if (
-      !user ||
-      !user.resetPasswordOtpHash ||
-      user.resetPasswordOtpExpires < Date.now()
-    )
-      throw new Error('OTP expired');
+    if (!user)
+      throw new Error('User not found');
 
-    const hashedOtp = crypto
-      .createHash('sha256')
+    const hash = crypto
+      .createHash("sha256")
       .update(otp)
-      .digest('hex');
+      .digest("hex");
 
-    if (hashedOtp !== user.resetPasswordOtpHash)
+    if (user.resetPasswordOtpHash !== hash)
       throw new Error('Invalid OTP');
 
-    user.password = newPassword;
+    if (user.resetPasswordOtpExpires < new Date())
+      throw new Error('OTP expired');
 
+    user.password = newPassword;
     user.resetPasswordOtpHash = undefined;
     user.resetPasswordOtpExpires = undefined;
 
+    // Increment token version to logout from all devices on password change
     user.tokenVersion += 1;
 
     await user.save();
+
+    return true;
   }
 
 }

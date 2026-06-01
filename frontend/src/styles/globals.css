@@ -1,1 +1,58 @@
 @import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #FFB347;
+  --color-brand-accent: #FFD36E;
+  
+  /* Liquid Aurora Fog Palette - Refined for visibility */
+  --color-aurora-champagne: #FDF4E8;
+  --color-aurora-amber: #FFB347;
+  --color-aurora-ivory: #FFFDF5;
+  --color-aurora-pearl: #E8E8ED;
+  --color-aurora-cream: #FFF9F0;
+
+  --font-sans: "Inter", "system-ui", "-apple-system", sans-serif;
+
+  /* Optical Refinement Shadows */
+  --shadow-specular-top: inset 0 1.5px 2px rgba(255, 255, 255, 0.9);
+  --shadow-specular-bottom: inset 0 -1px 2px rgba(255, 255, 255, 0.1);
+  --shadow-ambient-deep: 0 30px 100px rgba(0, 0, 0, 0.02), 0 15px 40px rgba(255, 179, 71, 0.04);
+  --shadow-rim-luminous: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+
+  --radius-5xl: 4rem;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900 antialiased;
+    overflow-x: hidden;
+  }
+}
+
+@layer utilities {
+  .liquid-refinement {
+    @apply backdrop-blur-3xl;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.25) 0%, rgba(255, 255, 255, 0.06) 100%);
+    box-shadow: 
+      var(--shadow-specular-top),
+      var(--shadow-specular-bottom),
+      var(--shadow-rim-luminous),
+      var(--shadow-ambient-deep);
+  }
+
+  .glass-sheen {
+    background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, 0.2) 50%, transparent 60%);
+  }
+
+  /* Liquid Aurora Fog Base - Deeper Atmosphere */
+  .bg-aurora-base {
+    background: linear-gradient(135deg, #FFFCF7 0%, #E8E8ED 100%);
+  }
+
+  .grain-texture {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    filter: contrast(150%) brightness(1000%);
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+}

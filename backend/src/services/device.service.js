@@ -5,23 +5,9 @@ class DeviceService {
   /* ================= REGISTER DEVICE ================= */
 
   static async registerDevice(userId, deviceData) {
-
-    const existing =
-      await DeviceRepository.findByDeviceId(
-        deviceData.deviceId
-      );
-
-    if (existing)
-      throw new Error("Device already registered");
-
-    return DeviceRepository.create({
-      user: userId,
-      deviceId: deviceData.deviceId,
-      publicKey: deviceData.publicKey,
-      identityKey: deviceData.identityKey,
-      signedPreKey: deviceData.signedPreKey
-    });
-
+    // Uses atomic upsert to prevent check-then-act race conditions
+    // and seamlessly handle device key rotations/re-logins.
+    return await DeviceRepository.upsertDevice(userId, deviceData);
   }
 
   /* ================= GET USER DEVICES ================= */

@@ -1,37 +1,31 @@
-import { useState } from "react"
 import { Link } from "react-router-dom"
 import ForgotPasswordForm from "../components/ForgotPasswordForm"
-import ResetPasswordForm from "../components/ResetPasswordForm"
-import AuthLayout from "../components/AuthLayout"
+import { AuthLayout } from "../components/AuthLayout"
 import AuthCard from "../components/AuthCard"
+import { motion } from "framer-motion"
 
 export default function ForgotPasswordPage() {
-  const [step, setStep] = useState<"email" | "reset">("email")
-  const [savedEmail, setSavedEmail] = useState("")
-
   return (
     <AuthLayout>
       <AuthCard
-        title={step === "email" ? "Forgot Password" : "Reset Password"}
-        subtitle={step === "email" ? "Enter your email to receive an OTP." : "Enter OTP and new password."}
+        title="Recovery"
+        subtitle="Reset your secure access"
       >
-        {step === "email" ? (
-          <ForgotPasswordForm onSuccess={(email) => {
-            setSavedEmail(email)
-            setStep("reset")
-          }} />
-        ) : (
-          <ResetPasswordForm defaultEmail={savedEmail} />
-        )}
+        <ForgotPasswordForm />
 
-        <div className="mt-6 text-center text-sm">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="mt-8 text-center"
+        >
           <Link
             to="/login"
-            className="text-gray-600 hover:text-[#1f2937] transition-colors duration-200"
+            className="text-[11px] font-bold uppercase tracking-[0.2em] text-gray-400 hover:text-brand-primary transition-colors"
           >
-            Back to Login
+            Back to Sign In
           </Link>
-        </div>
+        </motion.div>
       </AuthCard>
     </AuthLayout>
   )

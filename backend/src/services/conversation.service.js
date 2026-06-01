@@ -4,73 +4,188 @@ import ConversationRepository from "../repositories/conversation.repository.js";
 
 class ConversationService {
 
-  /* ================= PRIVATE CHAT ================= */
-  static async createPrivateConversation(userId, targetUserId) {
+/* ================= PRIVATE CHAT ================= */
 
-  if (userId.toString() === targetUserId.toString())
-    throw new Error("Cannot create conversation with yourself");
+static async createPrivateConversation(
+  userId,
+  targetUserId
+) {
 
-  const existing =
-    await ConversationRepository.findPrivateConversation(userId, targetUserId);
+  // ============================================
+  // PREVENT SELF CONVERSATION
+  // ============================================
 
-  if (existing) return existing;
-
-  return ConversationRepository.create({
-    type: "private",
-    participants: [
-      { user: userId, role: "member" },
-      { user: targetUserId, role: "member" }
-    ],
-    createdBy: userId,
-    encryptionMeta: {
-      algorithm: "nacl-box",
-      sharedKeyId: null
-    }
-  });
-}
-
-  /* ================= GROUP CREATE ================= */
-  static async createGroupConversation(userId, data, file) {
-
-  if (!data.groupName)
-    throw new Error("Group name required");
-
-  const members = [...new Set(data.members)];
-
-  const participants = [
-    { user: userId, role: "owner" },
-    ...members.map(id => ({ user: id, role: "member" }))
-  ];
-
-  let avatarData;
-
-  if (file) {
-    const upload = await uploadImageBuffer(file.buffer);
-
-    avatarData = {
-      publicId: upload.public_id,
-      url: upload.secure_url
-    };
+  if (
+    userId.toString() ===
+    targetUserId.toString()
+  ) {
+    throw new Error(
+      "Cannot create conversation with yourself"
+    );
   }
 
+  // ============================================
+  // GENERATE DETERMINISTIC PRIVATE KEY
+  // Prevent duplicate private conversations
+  // ============================================
+
+  const privateKey =
+
+    [userId, targetUserId]
+
+      .map(id => id.toString())
+
+      .sort()
+
+      .join(':');
+
+  // ============================================
+  // CHECK EXISTING CONVERSATION
+  // ============================================
+
+  const existing =
+
+    await ConversationRepository
+      .findPrivateConversation(
+        privateKey
+      );
+
+  if (existing)
+    return existing;
+
+  // ============================================
+  // CREATE PRIVATE CONVERSATION
+  // ============================================
+
   return ConversationRepository.create({
-    type: "group",
-    groupName: data.groupName,
-    groupAbout: data.groupAbout,
-    groupAvatar: avatarData,
-    groupSettings: {
-      onlyAdminsCanSend: false,
-      onlyAdminsCanAddMembers: true,
-      onlyAdminsCanEditInfo: true
-    },
-    participants,
+
+    type: "private",
+
+    privateKey,
+
+    participants: [
+
+      {
+        user: userId,
+        role: "member"
+      },
+
+      {
+        user: targetUserId,
+        role: "member"
+      }
+    ],
+
     createdBy: userId,
+
     encryptionMeta: {
+
       algorithm: "nacl-box",
+
       sharedKeyId: null
     }
   });
 }
+
+/* ================= GROUP CREATE ================= */
+
+  static async createGroupConversation(
+    userId,
+    data,
+    file
+  ) {
+
+    if (!data.groupName)
+      throw new Error("Group name required");
+
+    // ============================================
+    // NORMALIZE + DEDUPE MEMBER IDS
+    // ============================================
+
+    const members = [
+      ...new Set(
+        data.members.map(
+          id => id.toString()
+        )
+      )
+    ];
+
+    // ============================================
+    // REMOVE OWNER FROM MEMBER LIST
+    // Prevent duplicate owner participant
+    // ============================================
+
+    const normalizedMembers =
+      members.filter(
+        id => id !== userId.toString()
+      );
+
+    // ============================================
+    // BUILD PARTICIPANTS
+    // ============================================
+
+    const participants = [
+
+      {
+        user: userId,
+        role: "owner"
+      },
+
+      ...normalizedMembers.map(id => ({
+        user: id,
+        role: "member"
+      }))
+    ];
+
+    let avatarData;
+
+    // ============================================
+    // UPLOAD GROUP AVATAR
+    // ============================================
+
+    if (file) {
+
+      const upload =
+        await uploadImageBuffer(
+          file.buffer
+        );
+
+      avatarData = {
+        publicId: upload.public_id,
+        url: upload.secure_url
+      };
+    }
+
+    // ============================================
+    // CREATE CONVERSATION
+    // ============================================
+
+    return ConversationRepository.create({
+
+      type: "group",
+
+      groupName: data.groupName,
+
+      groupAbout: data.groupAbout,
+
+      groupAvatar: avatarData,
+
+      groupSettings: {
+        onlyAdminsCanSend: false,
+        onlyAdminsCanAddMembers: true,
+        onlyAdminsCanEditInfo: true
+      },
+
+      participants,
+
+      createdBy: userId,
+
+      encryptionMeta: {
+        algorithm: "nacl-box",
+        sharedKeyId: null
+      }
+    });
+  }
 
   /* ================= UPDATE GROUP INFO ================= */
 static async updateGroupInfo(conversationId, userId, data, file) {
@@ -84,7 +199,7 @@ static async updateGroupInfo(conversationId, userId, data, file) {
         throw new Error("Conversation not found");
 
       const requester = conversation.participants.find(p =>
-        p.user.equals(userId)
+        p.user.toString() === userId.toString()
       );
 
       if (!requester || !["owner", "admin"].includes(requester.role))
@@ -120,41 +235,57 @@ static async updateGroupInfo(conversationId, userId, data, file) {
   }
 
 
-  /* ================= ADD MEMBER ================= */
-  static async addParticipant(conversationId, userId, newUserId) {
+/* ================= ADD MEMBER ================= */
+
+static async addParticipant(
+  conversationId,
+  userId,
+  newUserId
+) {
 
   const conversation =
-    await ConversationRepository.findById(conversationId);
+    await ConversationRepository.findById(
+      conversationId
+    );
 
   if (!conversation)
     throw new Error("Conversation not found");
 
-  const requester = conversation.participants.find(
-    p => p.user.equals(userId)
-  );
+  const requester =
+    conversation.participants.find(
+      p => p.user.toString() === userId.toString()
+    );
 
   if (!requester)
     throw new Error("Unauthorized");
 
   if (
-    conversation.groupSettings.onlyAdminsCanAddMembers &&
-    !["owner", "admin"].includes(requester.role)
-  )
+    conversation.groupSettings
+      .onlyAdminsCanAddMembers &&
+    !["owner", "admin"]
+      .includes(requester.role)
+  ) {
     throw new Error("Permission denied");
+  }
 
-  const exists = conversation.participants.find(
-    p => p.user.equals(newUserId)
-  );
+  // ============================================
+  // ATOMIC UPDATE
+  // Prevent duplicate users safely
+  // ============================================
 
-  if (exists)
-    throw new Error("User already in group");
+  const updatedConversation =
+    await ConversationRepository.addParticipantAtomically(
+      conversationId,
+      newUserId
+    );
 
-  conversation.participants.push({
-    user: newUserId,
-    role: "member"
-  });
+  if (!updatedConversation) {
+    throw new Error(
+      "User already in group"
+    );
+  }
 
-  return ConversationRepository.save(conversation);
+  return updatedConversation;
 }
 
   /* ================= REMOVE MEMBER ================= */
@@ -167,7 +298,7 @@ static async updateGroupInfo(conversationId, userId, data, file) {
     throw new Error("Conversation not found");
 
   const requester = conversation.participants.find(
-    p => p.user.equals(userId)
+    p => p.user.toString() === userId.toString()
   );
 
   if (!requester)
@@ -175,13 +306,13 @@ static async updateGroupInfo(conversationId, userId, data, file) {
 
   if (
     requester.role !== "owner" &&
-    !userId.equals(removeUserId)
+    userId.toString() !== removeUserId.toString()
   )
     throw new Error("Permission denied");
 
   conversation.participants =
     conversation.participants.filter(
-      p => !p.user.equals(removeUserId)
+      p => p.user.toString() !== removeUserId.toString()
     );
 
   return ConversationRepository.save(conversation);
@@ -197,14 +328,14 @@ static async updateGroupInfo(conversationId, userId, data, file) {
     throw new Error("Conversation not found");
 
   const requester = conversation.participants.find(
-    p => p.user.equals(userId)
+    p => p.user.toString() === userId.toString()
   );
 
   if (!requester || requester.role !== "owner")
     throw new Error("Only owner can promote");
 
   const target = conversation.participants.find(
-    p => p.user.equals(targetUserId)
+    p => p.user.toString() === targetUserId.toString()
   );
 
   if (!target)
@@ -249,7 +380,7 @@ static async updateGroupInfo(conversationId, userId, data, file) {
     results: conversations.length,
     total,
     page,
-    pages: Math.ceil(total / limit),
+    pages: Math.ceil(total),
     data: conversations
   };
 }

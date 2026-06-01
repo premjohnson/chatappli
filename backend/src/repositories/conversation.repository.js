@@ -17,12 +17,11 @@ class ConversationRepository {
     return query;
   }
 
-  static async findPrivateConversation(userA, userB) {
+  static async findPrivateConversation(privateKey) {
 
     return Conversation.findOne({
       type: "private",
-      participants: { $size: 2 },
-      "participants.user": { $all: [userA, userB] }
+      privateKey
     }).populate({
       path: "participants.user",
       select: "username avatar publicKey"
@@ -60,10 +59,64 @@ class ConversationRepository {
 
   /* ================= UPDATE ================= */
 
-  static async updateOne(filter, update) {
+static async updateOne(
+  filter,
+  update,
+  options = {}
+) {
 
-    return Conversation.updateOne(filter, update);
+  return Conversation.updateOne(
+    filter,
+    update,
+    options
+  );
 
+}
+  /* =====================================================
+     ATOMIC PARTICIPANT ADD
+     Prevents duplicate users safely
+  ===================================================== */
+
+  static async addParticipantAtomically(
+    conversationId,
+    newUserId
+  ) {
+
+    const filter = {
+
+      _id: conversationId,
+
+      // Only add if user NOT already present
+      'participants.user': {
+        $ne: newUserId
+      }
+    };
+
+    const update = {
+
+      $push: {
+        participants: {
+          user: newUserId,
+          role: "member"
+        }
+      }
+    };
+
+    const options = {
+      new: true,
+      runValidators: true
+    };
+
+    return Conversation
+      .findOneAndUpdate(
+        filter,
+        update,
+        options
+      )
+      .populate({
+        path: "participants.user",
+        select: "username avatar publicKey"
+      });
   }
 
   /* ================= PAGINATION ================= */

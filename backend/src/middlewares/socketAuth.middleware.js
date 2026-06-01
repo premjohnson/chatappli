@@ -4,16 +4,16 @@ import logger from "../config/logger.js";
 
 /**
  * Socket.IO Authentication Middleware
- * 
- * Validates JWT tokens from socket.handshake.auth.token
+ *
+ * Validates JWT tokens from socket.handshake.auth.token, socket.handshake.headers.authorization, or socket.handshake.query.token
  * Attaches userId to socket for subsequent operations
- * 
+ *
  * Socket.IO flow:
- * 1. Client: new Socket(url, { auth: { token } })
+ * 1. Client: new Socket(url, { auth: { token } }) or new Socket(url, { query: { token } })
  * 2. Server: middleware validates token
  * 3. Server: socket.userId set if valid
  * 4. Server: io.on('connection') called if middleware passes
- * 
+ *
  * @param {Socket} socket - Socket.IO socket instance
  * @param {Function} next - Middleware callback (pass error or call with no args)
  */
@@ -22,7 +22,12 @@ export const socketAuthMiddleware = (socket, next) => {
     // Extract token from socket auth object
     let token = socket.handshake.auth?.token;
 
-    // Fallback to Authorization header if auth.token not provided
+    // Fallback to query parameter if auth.token not provided
+    if (!token && socket.handshake.query?.token) {
+      token = socket.handshake.query.token;
+    }
+
+    // Fallback to Authorization header if auth.token and query.token not provided
     if (!token && socket.handshake.headers?.authorization) {
       const authHeader = socket.handshake.headers.authorization;
       if (authHeader.startsWith("Bearer ")) {

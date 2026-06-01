@@ -5,16 +5,22 @@ import config from '../config/index.js';
 /* ================= REGISTER ================= */
 export const register = asyncHandler(async (req, res) => {
 
-  const user = await AuthService.register(req.body, req.file);
+  const { user, accessToken, refreshToken } = 
+    await AuthService.register(req.body, req.file);
+
+  res.cookie(config.session.name, refreshToken, {
+    httpOnly: true,
+    secure: config.isProduction,
+    sameSite: 'strict',
+    maxAge: config.session.maxAge
+  });
 
   res.status(201).json({
     status: 'success',
     message: 'User registered successfully',
     data: {
-      id: user._id,
-      email: user.email,
-      username: user.username,
-      avatar: user.avatar?.url || null
+      user,
+      accessToken
     }
   });
 });
@@ -36,17 +42,12 @@ export const login = asyncHandler(async (req, res) => {
   });
 
   res.status(200).json({
-  status: 'success',
-  data: {
-    user: {
-      id: user._id,
-      email: user.email,
-      username: user.username,
-      avatar: user.avatar?.url || null
-    },
-    accessToken
-  }
-});
+    status: 'success',
+    data: {
+      user,
+      accessToken
+    }
+  });
 });
 
 
@@ -61,7 +62,7 @@ export const refresh = asyncHandler(async (req, res) => {
       message: 'No refresh token provided'
     });
 
-  const { accessToken, refreshToken: newRefreshToken } =
+  const { user, accessToken, refreshToken: newRefreshToken } =
     await AuthService.refresh(refreshToken);
 
   res.cookie(config.session.name, newRefreshToken, {
@@ -73,7 +74,10 @@ export const refresh = asyncHandler(async (req, res) => {
 
   res.status(200).json({
     status: 'success',
-    accessToken
+    data: {
+      user,
+      accessToken
+    }
   });
 });
 

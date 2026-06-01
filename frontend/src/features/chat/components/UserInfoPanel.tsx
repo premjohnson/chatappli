@@ -1,5 +1,9 @@
 import { useMemo } from "react"
 import type { ConversationParticipant } from "../../conversation/types/conversation.types"
+import { motion } from "framer-motion"
+import { X, Mail, Shield, Image, Ban, User } from "lucide-react"
+import { Button } from "../../../components/ui/Button"
+import { GlassPanel } from "../../../components/ui/GlassPanel"
 
 interface UserInfoPanelProps {
   participant: ConversationParticipant
@@ -13,142 +17,111 @@ export default function UserInfoPanel({
   onClose
 }: UserInfoPanelProps) {
   const user: any = participant;
-
-  // Get shared media from messages (would require passing conversationId)
-  // For now, we'll show basic user info
-  const sharedMedia = useMemo(() => {
-    // In a full implementation, you'd fetch and filter messages with attachments
-    return []
-  }, [])
+  const sharedMedia = useMemo(() => [], [])
 
   return (
-    <div className="absolute inset-0 z-50 bg-black/20 backdrop-blur-sm">
-      <div
-        className="absolute right-0 top-0 h-full w-full max-w-sm bg-white/90 backdrop-blur-xl shadow-2xl flex flex-col border-l border-gray-100"
+    <div className="absolute inset-0 z-50 overflow-hidden pointer-events-none">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/5 backdrop-blur-[2px] pointer-events-auto"
+      />
+      
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        className="absolute right-0 top-0 h-full w-full max-w-[360px] glass-panel border-l border-white/20 shadow-premium pointer-events-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="font-semibold text-gray-800">User Info</h2>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            ✕
-          </button>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
+          <h2 className="font-bold text-gray-900 tracking-tight text-xl">Information</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full h-8 w-8">
+            <X className="h-5 w-5" />
+          </Button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          {/* Avatar and Status */}
-          <div className="p-6 text-center border-b border-gray-100">
-            <div className="relative inline-block">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg">
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+          {/* Hero Section */}
+          <div className="p-8 text-center">
+            <div className="relative inline-block mb-6">
+              <div className="w-28 h-28 rounded-[2.5rem] bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-4xl shadow-inner border border-brand-primary/20 overflow-hidden">
                 {user?.avatar ? (
-                  <img
-                    src={user.avatar}
-                    alt={user.username}
-                    className="w-full h-full rounded-full object-cover"
-                  />
+                  <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
                 ) : (
                   user?.username?.charAt(0).toUpperCase() || "?"
                 )}
               </div>
-
-              {/* Online status indicator */}
-              <div
-                className={`absolute bottom-1 right-1 w-4 h-4 rounded-full border-2 border-white ${isOnline ? "bg-emerald-500" : "bg-gray-400"
-                  }`}
-              />
+              <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-4 border-white shadow-sm ${isOnline ? "bg-emerald-500" : "bg-gray-400"}`} />
             </div>
 
-            <h3 className="mt-4 text-lg font-semibold text-gray-800">
+            <h3 className="text-2xl font-bold text-gray-900 tracking-tight leading-tight">
               {user?.username || "Unknown User"}
             </h3>
-
-            <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium ${isOnline
-              ? "bg-emerald-100 text-emerald-700"
-              : "bg-gray-100 text-gray-600"
-              }`}>
-              {isOnline ? "Online" : "Offline"}
-            </span>
+            <p className={`mt-1 text-sm font-bold uppercase tracking-widest ${isOnline ? "text-emerald-500" : "text-gray-400"}`}>
+              {isOnline ? "Online Now" : "Currently Offline"}
+            </p>
           </div>
 
-          {/* User Info */}
-          <div className="p-6 space-y-4 border-b border-gray-100">
-            {/* Email */}
+          {/* Details Section */}
+          <div className="px-6 space-y-8 mb-8">
             {user?.email && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Email
-                </p>
-                <a
-                  href={`mailto:${user.email}`}
-                  className="text-sm text-blue-600 hover:text-blue-700 break-all"
-                >
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Mail className="h-4 w-4" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Email Address</span>
+                </div>
+                <a href={`mailto:${user.email}`} className="text-[15px] font-semibold text-brand-primary hover:underline block truncate">
                   {user.email}
                 </a>
               </div>
             )}
 
-            {/* Role in conversation */}
             {participant.role && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  Role
-                </p>
-                <p className="text-sm text-gray-700 capitalize">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Shield className="h-4 w-4" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Conversation Role</span>
+                </div>
+                <p className="text-[15px] font-semibold text-gray-800 capitalize">
                   {participant.role}
                 </p>
               </div>
             )}
-          </div>
 
-          {/* Shared Media Section */}
-          {sharedMedia.length > 0 && (
-            <div className="p-6 border-b border-gray-100">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
-                Shared Media
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {sharedMedia.map((media: any, index: number) => (
-                  <div
-                    key={index}
-                    className="aspect-square rounded-lg bg-gray-200 overflow-hidden flex items-center justify-center"
-                  >
-                    {media.type?.startsWith("image/") ? (
-                      <img
-                        src={media.data}
-                        alt={media.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-2xl">📎</span>
-                    )}
-                  </div>
-                ))}
+            {/* Media Section */}
+            <div className="space-y-4 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-gray-400">
+                  <Image className="h-4 w-4" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Shared Media</span>
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">0 items</span>
+              </div>
+              <div className="bg-brand-primary/5 rounded-3xl p-8 flex flex-col items-center justify-center text-center border border-brand-primary/5">
+                <p className="text-sm font-medium text-gray-400">No media shared in this conversation yet.</p>
               </div>
             </div>
-          )}
-
-          {/* Empty State */}
-          {sharedMedia.length === 0 && (
-            <div className="p-6 text-center text-gray-400">
-              <p className="text-sm">No shared media yet</p>
-            </div>
-          )}
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="p-4 border-t border-gray-100 space-y-2">
-          <button className="w-full px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium text-sm transition-colors">
-            View Profile
-          </button>
-          <button className="w-full px-4 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 font-medium text-sm transition-colors">
-            Block User
-          </button>
+        {/* Footer Actions */}
+        <div className="p-6 bg-white/40 backdrop-blur-md border-t border-white/10 space-y-3">
+          <Button className="w-full justify-start gap-3 h-12 rounded-2xl">
+            <User className="h-4 w-4" />
+            View Full Profile
+          </Button>
+          <Button variant="outline" className="w-full justify-start gap-3 h-12 rounded-2xl border-red-500/20 text-red-500 hover:bg-red-500/5 hover:border-red-500/30">
+            <Ban className="h-4 w-4" />
+            Block {user?.username}
+          </Button>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

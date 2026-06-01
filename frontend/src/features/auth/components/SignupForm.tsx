@@ -3,9 +3,9 @@ import { useMutation } from "@tanstack/react-query"
 import { signupApi } from "../api/signup.api"
 import { AuthInput } from "./AuthInput"
 import { AuthButton } from "./AuthButton"
+import { User, Mail, Lock, Camera } from "lucide-react"
 
 export default function SignupForm() {
-
   const mutation = useMutation({
     mutationFn: signupApi
   })
@@ -17,7 +17,6 @@ export default function SignupForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
     mutation.mutate({
       email,
       username,
@@ -27,54 +26,56 @@ export default function SignupForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
-
+    <form onSubmit={handleSubmit} className="flex flex-col space-y-3.5 w-full">
       <AuthInput
         label="Username"
         type="text"
-        placeholder="Enter username"
+        placeholder="Enter your username"
         onChange={(e) => setUsername(e.target.value)}
         required
+        icon={<User className="h-5 w-5" />}
       />
 
       <AuthInput
-        label="Email"
+        label="Email Address"
         type="email"
-        placeholder="Enter email"
+        placeholder="Enter your email"
         onChange={(e) => setEmail(e.target.value)}
         required
+        icon={<Mail className="h-5 w-5" />}
       />
 
       <AuthInput
         label="Password"
         type="password"
-        placeholder="Enter password"
+        placeholder="••••••••"
         onChange={(e) => setPassword(e.target.value)}
         required
+        icon={<Lock className="h-5 w-5" />}
       />
 
-      {/* Avatar input retains some custom styling for the file picker but adopts neumorphic layout */}
-      <div className="w-full">
-        <label className="block text-sm font-medium text-[#6b7280] mb-2 px-1">Avatar (Optional)</label>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setAvatar(e.target.files?.[0] || null)}
-          className="w-full px-5 py-3 text-sm text-[#1f2937] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-white file:text-[#1f2937] hover:file:bg-gray-100 transition-all rounded-[20px] bg-[#eef2f6]"
-          style={{
-            boxShadow: "inset 2px 2px 6px rgba(0,0,0,0.06), inset -2px -2px 6px rgba(255,255,255,0.8)"
-          }}
-        />
+      <div className="w-full space-y-1.5">
+        <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-900/40 ml-3">Avatar (Optional)</label>
+        <div className="relative group">
+          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand-primary transition-colors pointer-events-none z-30">
+            <Camera className="h-5 w-5" />
+          </div>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setAvatar(e.target.files?.[0] || null)}
+            className="flex h-12 w-full rounded-2xl border border-white/40 bg-white/20 pl-11 pr-4 py-2 text-xs transition-all file:mr-4 file:py-1 file:px-3 file:rounded-xl file:border-0 file:text-[9px] file:font-bold file:uppercase file:tracking-widest file:bg-brand-primary/10 file:text-brand-primary hover:file:bg-brand-primary/20 cursor-pointer focus:outline-none focus:border-brand-primary/30 focus:bg-white/40 backdrop-blur-2xl shadow-[inset_0_1.5px_2px_rgba(255,255,255,0.7),inset_0_-1px_1px_rgba(255,255,255,0.1)] relative z-10"
+          />
+        </div>
       </div>
 
       <AuthButton
         type="submit"
-        disabled={mutation.isPending}
         isLoading={mutation.isPending}
+        className="mt-3"
       >
-        {mutation.isPending ? "Registering..." : "Register"}
+        Create Account
       </AuthButton>
-
     </form>
   )
 }

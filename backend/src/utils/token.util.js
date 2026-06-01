@@ -11,9 +11,9 @@ export const generateAccessToken = (user) => {
       userId: user._id.toString(),
       tokenVersion: user.tokenVersion
     },
-    process.env.JWT_ACCESS_SECRET,
+    config.jwt.accessSecret,
     {
-      expiresIn: process.env.JWT_ACCESS_EXPIRES || '15m'
+      expiresIn: config.jwt.accessExpires || '15m'
     }
   );
 };
@@ -33,9 +33,9 @@ export const generateRefreshToken = (user, existingFamily = null) => {
       tokenFamily,
       tokenVersion: user.tokenVersion
     },
-    process.env.JWT_REFRESH_SECRET,
+    config.jwt.refreshSecret,
     {
-      expiresIn: process.env.JWT_REFRESH_EXPIRES || '7d'
+      expiresIn: config.jwt.refreshExpires || '7d'
     }
   );
 
@@ -50,12 +50,12 @@ export const generateRefreshToken = (user, existingFamily = null) => {
  * Verify Access Token
  */
 export const verifyAccessToken = (token) => {
-  return jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+  return jwt.verify(token, config.jwt.accessSecret);
 };
 
 /**
  * Verify Refresh Token
  */
 export const verifyRefreshToken = (token) => {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+  return jwt.verify(token, config.jwt.refreshSecret);
 };

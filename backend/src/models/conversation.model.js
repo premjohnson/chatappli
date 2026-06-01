@@ -76,17 +76,34 @@ const conversationSchema = new Schema(
       default: 'private',
       index: true
     },
+    privateKey: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true
+    },
 
     participants: {
       type: [participantSchema],
-      validate: {
-        validator: function (value) {
-          if (this.type === 'private') return value.length === 2;
-          if (this.type === 'group') return value.length >= 2;
-          return false;
+      validate: [
+        {
+          validator: function (value) {
+            if (this.type === 'private') return value.length === 2;
+            if (this.type === 'group') return value.length >= 2;
+            return false;
+          },
+          message: 'Invalid participant count'
         },
-        message: 'Invalid participant count'
-      }
+        {
+          validator: function (value) {
+            // Check for duplicate user IDs in participants
+            const userIds = value.map(p => p.user.toString());
+            const uniqueIds = new Set(userIds);
+            return userIds.length === uniqueIds.size;
+          },
+          message: 'Duplicate users in participants array'
+        }
+      ]
     },
     groupName: {
       type: String,
@@ -148,13 +165,18 @@ const conversationSchema = new Schema(
 
 /* ================= INDEXES ================= */
 
-conversationSchema.index({ 'participants.user': 1 });
+conversationSchema.index({ 'participants.user': 1, lastMessageAt: -1 });
 
 conversationSchema.index({ lastMessageAt: -1 });
 
 conversationSchema.index(
-  { type: 1, 'participants.user': 1 },
-  { partialFilterExpression: { type: 'private' } }
+  { privateKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: 'private'
+    }
+  }
 );
 
 

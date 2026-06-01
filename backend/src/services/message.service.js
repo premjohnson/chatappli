@@ -4,6 +4,8 @@ import MessageRepository from "../repositories/message.repository.js";
 import ConversationRepository from "../repositories/conversation.repository.js";
 import TransactionManager from "../core/transaction.manager.js";
 import { getRedisClient } from "../config/redis.js";
+import AppError from "../utils/appError.js";
+import { ERROR_CODES } from "../utils/errorConstants.js";
 
 class MessageService {
 
@@ -34,14 +36,14 @@ class MessageService {
         await ConversationRepository.findById(conversationId, session);
 
       if (!conversation)
-        throw new Error("Conversation not found");
+        throw new AppError(ERROR_CODES.CONVERSATION_NOT_FOUND, 404);
 
       const senderParticipant = conversation.participants.find(
         p => p.user.equals(userId)
       );
 
       if (!senderParticipant)
-        throw new Error("Not a participant");
+        throw new AppError(ERROR_CODES.NOT_PARTICIPANT, 403);
 
       /* detect receiver */
 
@@ -52,7 +54,7 @@ class MessageService {
       const receiverId = receiverParticipant?.user;
 
       if (!receiverId)
-        throw new Error("Receiver not found");
+        throw new AppError(ERROR_CODES.RECEIVER_NOT_FOUND, 404);
 
       /* idempotency */
 
@@ -90,13 +92,18 @@ class MessageService {
       conversation.lastMessage = savedMessage._id;
       conversation.lastMessageAt = savedMessage.createdAt;
 
-      conversation.participants.forEach(p => {
-        if (!p.user.equals(userId)) {
-          p.unreadCount += 1;
-        }
-      });
-
       await ConversationRepository.save(conversation, session);
+
+      /* Atomic unread count increment for the receiver */
+      await mongoose.model("Conversation").updateOne(
+        { 
+          _id: conversationId,
+          "participants.user": receiverId 
+        },
+        { 
+          $inc: { "participants.$.unreadCount": 1 } 
+        }
+      ).session(session);
 
       /* Redis cache */
 

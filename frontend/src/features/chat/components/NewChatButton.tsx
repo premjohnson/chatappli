@@ -1,3 +1,6 @@
+import { Plus } from "lucide-react"
+import { Button } from "../../../components/ui/Button"
+
 interface NewChatButtonProps {
   onClick?: () => void
   disabled?: boolean
@@ -8,21 +11,15 @@ export default function NewChatButton({
   disabled = false
 }: NewChatButtonProps) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="icon"
       onClick={onClick}
       disabled={disabled}
-      className="p-2 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      className="rounded-2xl hover:bg-brand-primary/10 text-brand-primary"
       title="Start a new conversation"
     >
-      <svg
-        className="w-5 h-5 text-gray-700"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M12 5v14M5 12h14" />
-      </svg>
-    </button>
+      <Plus className="w-6 h-6" />
+    </Button>
   )
 }

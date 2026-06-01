@@ -1,20 +1,20 @@
 import PresenceService from "../../services/presence.service.js";
 import { PRESENCE_EVENTS } from "../events/presence.events.js";
 
-export default function presenceHandler(io, socket) {
+export default async function presenceHandler(io, socket) {
 
   const userId = socket.userId;
+  const count = 
 
-  PresenceService.setOnline(userId);
+   await PresenceService.incrementConnections(userId);
 
-  io.emit(PRESENCE_EVENTS.USER_ONLINE, { userId });
-
-  socket.on("disconnect", async () => {
-
-    await PresenceService.setOffline(userId);
-
-    io.emit(PRESENCE_EVENTS.USER_OFFLINE, { userId });
-
-  });
+    if(count === 1) {
+      // Scoped broadcast: only to conversation rooms the user is in
+      socket.rooms.forEach(room => {
+        if (room !== socket.id && room !== `user:${userId}`) {
+          socket.to(room).emit(PRESENCE_EVENTS.USER_ONLINE, { userId });
+        }
+      });
+    }
 
 }

@@ -1,7 +1,10 @@
 import rateLimit from 'express-rate-limit';
+import AppError from '../utils/appError.js';
+import { ERROR_CODES } from '../utils/errorConstants.js';
 
 /**
  * Generic limiter factory
+ * Senior Pro Pattern: Consistent error handling + Standardized headers
  */
 const createLimiter = (options) =>
   rateLimit({
@@ -9,9 +12,9 @@ const createLimiter = (options) =>
     max: options.max,
     standardHeaders: true,
     legacyHeaders: false,
-    message: {
-      status: 'fail',
-      message: options.message || 'Too many requests, please try again later'
+    handler: (req, res, next) => {
+      // Use AppError for consistent response structure
+      next(new AppError(ERROR_CODES.RATE_LIMIT_EXCEEDED, 429));
     }
   });
 
