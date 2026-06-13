@@ -17,6 +17,7 @@ import conversationRoutes from "./routes/conversation.routes.js";
 import messageRoutes from "./routes/message.routes.js";
 import deviceRoutes from "./routes/device.routes.js";
 import users from "./routes/users.routes.js";
+import liveblockRoutes from "./routes/liveblock.routes.js";
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use(
     credentials: true,
   })
 );
+  console.log("CLIENT_URL:", config.clientUrl);
 
 //logging
 if(config.isDevelopment) {  
@@ -50,6 +52,7 @@ app.use("/api/v1/conversations", conversationRoutes);
 app.use("/api/v1/messages", messageRoutes);
 app.use("/api/v1/devices", deviceRoutes);
 app.use("/api/v1/search", users);
+app.use("/api/v1/liveblocks", liveblockRoutes);
 
 //404
 

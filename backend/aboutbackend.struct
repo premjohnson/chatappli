@@ -1,0 +1,86 @@
+# BACKEND ARCHITECTURE & STRUCTURE
+
+## Core Technology Stack
+- **Runtime:** Node.js (v18+)
+- **Framework:** Express.js (v5.x)
+- **Database:** MongoDB via Mongoose
+- **Real-time:** Socket.IO with Redis Adapter
+- **Cache/Session:** Redis (ioredis)
+- **Security:** Helmet, CORS, Rate Limiting, JWT, Cookie-Parser
+- **Validation:** Zod
+
+## Directory Structure & Responsibilities
+
+### `/src`
+The heart of the application, containing all source code.
+
+#### `src/config/`
+- **database.js:** MongoDB connection setup.
+- **index.js:** Centralized environment variable management.
+- **logger.js:** Winston logger configuration.
+- **redis.js:** Redis client initialization for caching and socket scaling.
+
+#### `src/core/`
+- **transaction.manager.js:** Logic for handling multi-document MongoDB transactions to ensure data consistency.
+
+#### `src/controllers/`
+Acts as the entry point for HTTP requests. They extract parameters, call relevant services, and send responses.
+- `auth.controller.js`: Handles login, register, logout, and token refresh.
+- `conversation.controller.js`: Manages chat room creation and retrieval.
+- `message.controller.js`: Handles message sending (REST) and history.
+- `user.controller.js`: Profile management and user discovery.
+
+#### `src/services/`
+Contains the core business logic. Services are independent of the transport layer (HTTP/WS).
+- `auth.service.js`: Logic for credential verification and JWT generation.
+- `presence.service.js`: Manages user online/offline status.
+- `socketCleanup.service.js`: Handles resource cleanup on socket disconnection.
+
+#### `src/repositories/`
+The Data Access Layer (DAL). Interfaces directly with MongoDB models to perform CRUD.
+- Encapsulates database queries to keep services clean.
+
+#### `src/models/`
+Defines Mongoose schemas and data structures.
+- `user.model.js`, `message.model.js`, `conversation.model.js`, etc.
+
+#### `src/middlewares/`
+- `protect.middleware.js`: JWT authentication and route protection.
+- `error.middleware.js`: Centralized error handling and formatting.
+- `socketAuth.middleware.js`: Authentication for WebSocket handshakes.
+- `rateLimit.middleware.js`: DDoS and brute-force protection.
+
+#### `src/socket/`
+- **socket.server.js:** Socket.IO initialization and server setup.
+- **handlers/:** Specific logic for message events, typing indicators, and presence.
+- **events/:** Standardized event emitters.
+
+#### `src/routes/`
+Defines the REST API surface area, linking endpoints to controller methods.
+
+#### `src/utils/`
+- `appError.js`: Custom error class for operational errors.
+- `asyncHandler.js`: Wrapper to catch errors in async express routes.
+- `token.util.js`: JWT signing and verification logic.
+
+## Key Architectural Patterns
+
+1. **Separation of Concerns:**
+   - Routes -> Controllers -> Services -> Repositories -> Models.
+2. **Centralized Error Handling:**
+   - All errors are passed to `next(err)` and handled by a single middleware.
+3. **Repository Pattern:**
+   - Abstracts the database layer to allow for easier unit testing and potential DB swaps.
+4. **Service Layer:**
+   - Ensures that business logic is reusable across REST and WebSockets.
+5. **Real-time Synchronization:**
+   - Uses Redis as a Pub/Sub backbone to scale Socket.IO across multiple processes.
+
+## Request Lifecycle
+1. Request hits `src/server.js`.
+2. Passes through `src/app.js` global middlewares (Security, CORS, Parsers).
+3. Routed via `src/routes/` to a specific `src/controller/`.
+4. Controller validates input (Zod) and calls a `src/service/`.
+5. Service performs logic, potentially calling `src/repository/` for DB access.
+6. Service returns data to Controller.
+7. Controller sends JSON response.

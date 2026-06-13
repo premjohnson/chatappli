@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>()(
        * Initial login: set user + token
        */
       setAuth: (user, token) => {
-        console.log("[AuthStore] Setting auth:", user._id)
+        console.log("[AuthStore] Setting auth:", user.id)
         set({
           user,
           accessToken: token,

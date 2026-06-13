@@ -35,21 +35,18 @@ export default function MessageList({ conversationId }: Props) {
     (p) => p.user?.id !== currentUser?.id
   )
 
-  const receiverPublicKey = receiver?.user?.publicKey || ""
+  const receiverPublicKey = (receiver?.publicKey || (receiver?.user as any)?.publicKey || "") as string
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
   return (
-    <div className="flex flex-col gap-4 p-6 overflow-y-auto h-full">
+    <div className="flex flex-col gap-3.5 p-5 overflow-y-auto h-full custom-scrollbar">
 
       {messages.map((msg) => {
 
-        const senderId =
-          typeof msg.sender === "string"
-            ? msg.sender
-            : msg.sender?._id
+        const senderId = msg.sender
 
         const isSent = senderId === currentUser?.id
 

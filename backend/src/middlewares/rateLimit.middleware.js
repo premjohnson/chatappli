@@ -49,3 +49,10 @@ export const resetPasswordLimiter = createLimiter({
   max: 5,
   message: 'Too many reset attempts'
 });
+
+// LIVEBLOCK
+export const liveblockLimiter = createLimiter({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // max 30 requests per minute
+  message: 'Too many LiveBlock requests, please try again later'
+});

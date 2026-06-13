@@ -3,9 +3,12 @@ import ConversationList from "../../conversation/components/ConversationList"
 import NewChatButton from "./NewChatButton"
 import NewConversationModal from "./NewConversationModal"
 import { motion } from "framer-motion"
+import { Search } from "lucide-react"
+import { Input } from "../../../components/ui/Input"
 
 export function ChatSidebar() {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const handleOpenModal = () => setIsModalOpen(true)
   const handleCloseModal = () => setIsModalOpen(false)
@@ -24,9 +27,20 @@ export function ChatSidebar() {
         <NewChatButton onClick={handleOpenModal} />
       </div>
 
+      {/* Inline Search Bar */}
+      <div className="px-4 pt-3 shrink-0">
+        <Input
+          placeholder="Search chats..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          icon={<Search className="h-4 w-4 text-gray-400" />}
+          className="text-xs h-9 px-3.5 py-1.5 rounded-xl bg-white/10 border-none placeholder:text-gray-400"
+        />
+      </div>
+
       {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto px-2 py-4">
-        <ConversationList />
+      <div className="flex-1 overflow-y-auto px-2 py-3">
+        <ConversationList searchQuery={searchQuery} />
       </div>
 
       {/* New Conversation Modal */}

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import messageHandler from "./handlers/message.handler.js";
 import presenceHandler from "./handlers/presence.handler.js";
 import typingHandler from "./handlers/typing.handler.js";
+import liveblockHandler from "./handlers/liveblock.handler.js";
 
 import logger from "../config/logger.js";
 
@@ -38,5 +39,6 @@ export const  registerSocketHandlers = async  (io, socket) => {
   messageHandler(io, socket);
   await presenceHandler(io, socket);
   typingHandler(io, socket);
+  liveblockHandler(io, socket);
 
 };

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { z } from "zod";
 import Message from "../models/message.model.js";
 import MessageRepository from "../repositories/message.repository.js";
 import ConversationRepository from "../repositories/conversation.repository.js";
@@ -6,6 +7,7 @@ import TransactionManager from "../core/transaction.manager.js";
 import { getRedisClient } from "../config/redis.js";
 import AppError from "../utils/appError.js";
 import { ERROR_CODES } from "../utils/errorConstants.js";
+import logger from "../config/logger.js";
 
 class MessageService {
 
@@ -149,19 +151,27 @@ class MessageService {
 
   static async editMessage(messageId, userId, encryptedContent, nonce) {
 
+    // 1. Zod input validation
+    const editSchema = z.object({
+      encryptedContent: z.string().min(1, "Encrypted content is required"),
+      nonce: z.string().min(1, "Nonce is required"),
+    });
+
+    editSchema.parse({ encryptedContent, nonce });
+
     const message =
       await MessageRepository.findById(messageId);
 
     if (!message)
-      throw new Error("Message not found");
+      throw new AppError(ERROR_CODES.NOT_FOUND, 404);
 
     if (!message.sender.equals(userId))
-      throw new Error("Unauthorized");
+      throw new AppError(ERROR_CODES.PERMISSION_DENIED, 403);
 
     const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
     if (Date.now() - message.createdAt.getTime() > EDIT_WINDOW_MS)
-      throw new Error("Edit window expired");
+      throw new AppError(ERROR_CODES.WINDOW_EXPIRED, 400);
 
     message.editHistory = message.editHistory || [];
 
@@ -170,11 +180,29 @@ class MessageService {
       editedAt: new Date()
     });
 
+    // Issue 3: Cap the edit history array to prevent document bloat
+    const MAX_EDIT_HISTORY = 10;
+    if (message.editHistory.length > MAX_EDIT_HISTORY) {
+      message.editHistory.shift();
+    }
+
     message.encryptedContent = encryptedContent;
     message.nonce = nonce;
     message.editedAt = new Date();
+    message.isEdited = true;
 
-    return MessageRepository.save(message);
+    const updatedMessage = await MessageRepository.save(message);
+
+    // Broadcast update to all participants in conversation room
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(updatedMessage.conversation.toString()).emit("message:update", updatedMessage);
+    } catch (err) {
+      logger.warn(`Failed to broadcast message edit: ${err.message}`);
+    }
+
+    return updatedMessage;
 
   }
 //delete message for self (soft delete)

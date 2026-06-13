@@ -98,6 +98,7 @@ export const initSocket = async (httpServer) => {
         io,
         socket
       );
+      socket.emit("ready");
     }
   );
 };

@@ -4,9 +4,10 @@ import { useAuthStore } from "../../../store/auth.store"
 import { encryptMessage } from "../../../utils/crypto"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import { emitTypingStart, emitTypingStop } from "../../../lib/socket"
-import { Send, Paperclip, Smile } from "lucide-react"
+import { Send, Paperclip, Smile, PlusCircle } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
 import { motion } from "framer-motion"
+import { CreateLiveBlockModal } from "../../chat/components/CreateLiveBlockModal"
 
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 
@@ -16,6 +17,7 @@ interface Props {
 
 export function MessageInput({ conversationId }: Props) {
   const [text, setText] = useState("")
+  const [isModalOpen, setIsModalOpen] = useState(false)
   const { mutateAsync } = useSendMessage()
   const { data: conversations } = useMyConversations()
   const currentUser = useAuthStore((s) => s.user)
@@ -31,20 +33,18 @@ export function MessageInput({ conversationId }: Props) {
     }, 2000)
   }
 
-  const send = async () => {
-    if (!text.trim()) return
+  const sendEncryptedMessage = async (messageText: string) => {
     const { identityPrivateKey } = useAuthStore.getState()
     if (!identityPrivateKey) return
 
-    emitTypingStop(conversationId)
     const currentConvo = conversations?.find((c: Conversation) => c._id === conversationId)
     if (!currentConvo) return
 
     const receiver = currentConvo.participants.find((p: ConversationParticipant) => p._id !== currentUser?.id)
-    const receiverPublicKey = receiver?.publicKey || receiver?.user?.publicKey
+    const receiverPublicKey = (receiver?.publicKey || (receiver?.user as any)?.publicKey || "") as string
     if (!receiverPublicKey) return
 
-    const payload = { text: text.trim(), file: null }
+    const payload = { text: messageText.trim(), file: null }
 
     try {
       const { encryptedContent, nonce } = encryptMessage(JSON.stringify(payload), identityPrivateKey, receiverPublicKey)
@@ -55,10 +55,20 @@ export function MessageInput({ conversationId }: Props) {
         clientMessageId: crypto.randomUUID(),
         type: "text"
       })
-      setText("")
     } catch (error) {
       console.error("Failed to send message:", error)
     }
+  }
+
+  const send = async () => {
+    if (!text.trim()) return
+    emitTypingStop(conversationId)
+    await sendEncryptedMessage(text)
+    setText("")
+  }
+
+  const handleCreateLiveBlockSuccess = async (blockId: string) => {
+    await sendEncryptedMessage(`[liveblock:${blockId}]`)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -75,6 +85,16 @@ export function MessageInput({ conversationId }: Props) {
       className="p-4 md:p-6 pt-2"
     >
       <div className="glass-floating rounded-3xl p-2 flex gap-2 items-center shadow-xl border-white/40">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsModalOpen(true)}
+          className="rounded-full shrink-0"
+          title="Create collaborative checklist/poll"
+        >
+          <PlusCircle className="h-5 w-5 text-gray-400 hover:text-brand-primary transition-colors" />
+        </Button>
+
         <Button variant="ghost" size="icon" className="rounded-full shrink-0 hidden sm:flex">
           <Paperclip className="h-5 w-5 text-gray-400" />
         </Button>
@@ -102,6 +122,13 @@ export function MessageInput({ conversationId }: Props) {
           </Button>
         </div>
       </div>
+
+      <CreateLiveBlockModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        conversationId={conversationId}
+        onCreateSuccess={handleCreateLiveBlockSuccess}
+      />
     </motion.div>
   )
 }

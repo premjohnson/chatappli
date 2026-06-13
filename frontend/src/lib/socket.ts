@@ -1,6 +1,5 @@
 import { io, Socket } from "socket.io-client"
 import type { ManagerOptions, SocketOptions } from "socket.io-client"
-import type { Message } from "../features/message/types/message.types"
 
 let socket: Socket | null = null
 let isConnecting = false
@@ -17,7 +16,6 @@ const SOCKET_CONFIG: Partial<ManagerOptions & SocketOptions> = {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 30000,
 
-  connectTimeout: 20000,
   timeout: 30000,
 
   transports: ["websocket", "polling"],
@@ -165,4 +163,16 @@ export const emitTypingStop = (conversationId: string) => {
   if (!socket?.connected) return
 
   socket.emit("typing:stop", { conversationId })
+}
+
+export const emitLiveBlockAction = (payload: {
+  blockId: string
+  clientVersion: number
+  action: {
+    type: string
+    payload?: any
+  }
+}) => {
+  const op = () => socket?.emit("liveblock:action", payload)
+  socket?.connected ? op() : queueOperation(op)
 }

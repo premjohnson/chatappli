@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import LiquidAuroraFog from '../../../components/ui/LiquidAuroraFog';
+import { LiquidAuroraFog } from '../../../components/ui/LiquidAuroraFog';
 
 interface AuthLayoutProps {
   children: React.ReactNode;

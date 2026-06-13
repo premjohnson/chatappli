@@ -24,6 +24,11 @@ export const ERROR_CODES = {
   INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
   VALIDATION_ERROR: "VALIDATION_ERROR",
   RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
+
+  // LiveBlock Errors
+  LIVEBLOCK_NOT_FOUND: "LIVEBLOCK_NOT_FOUND",
+  LIVEBLOCK_FROZEN: "LIVEBLOCK_FROZEN",
+  CONCURRENCY_CONFLICT: "CONCURRENCY_CONFLICT",
 };
 
 export const ERROR_MESSAGES = {
@@ -47,4 +52,8 @@ export const ERROR_MESSAGES = {
   [ERROR_CODES.INTERNAL_SERVER_ERROR]: "An unexpected error occurred. Please try again later.",
   [ERROR_CODES.VALIDATION_ERROR]: "Input validation failed.",
   [ERROR_CODES.RATE_LIMIT_EXCEEDED]: "Too many requests. Please slow down.",
+
+  [ERROR_CODES.LIVEBLOCK_NOT_FOUND]: "The requested LiveBlock was not found.",
+  [ERROR_CODES.LIVEBLOCK_FROZEN]: "This LiveBlock is frozen and cannot be modified.",
+  [ERROR_CODES.CONCURRENCY_CONFLICT]: "A concurrency conflict occurred. Please retry your action.",
 };

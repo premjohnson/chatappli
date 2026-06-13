@@ -20,6 +20,7 @@ export default function ConversationItem({
 }: Props) {
   const typingMap = useChatStore((s) => s.typingMap)
   const latestMessages = useChatStore((s) => s.latestMessages)
+  const presenceMap = useChatStore((s) => s.presenceMap)
   const currentUser = useAuthStore((s) => s.user)
   const identityPrivateKey = useAuthStore((s) => s.identityPrivateKey)
 
@@ -27,7 +28,8 @@ export default function ConversationItem({
     ? conversation.participants.find((p: ConversationParticipant) => p.user?.id !== currentUser?.id)
     : null
 
-  const receiverId = receiver?.user?.id || ""
+  const receiverId = (receiver?.user?.id || "") as string
+  const isOnline = receiverId ? presenceMap[receiverId] || false : false
   const isTyping = typingMap?.[conversation._id]?.includes(receiverId) || false
 
   const myParticipantData = conversation.participants.find((p) => p.user?.id === currentUser?.id)
@@ -39,12 +41,13 @@ export default function ConversationItem({
     if (!latestMsg) return text
 
     try {
-      const senderId = typeof latestMsg.sender === "string" ? latestMsg.sender : latestMsg.sender?._id
+      const latestMsgAny = latestMsg as any
+      const senderId = typeof latestMsgAny.sender === "string" ? latestMsgAny.sender : latestMsgAny.sender?._id
       const isSent = senderId === currentUser?.id
       const raw = decryptMessage(
-        latestMsg.encryptedContent,
-        latestMsg.nonce,
-        isSent ? receiver?.user?.publicKey || "" : latestMsg.senderPublicKey || receiver?.user?.publicKey || "",
+        (latestMsgAny.encryptedContent || "") as string,
+        (latestMsgAny.nonce || "") as string,
+        (isSent ? (receiver?.user as any)?.publicKey || "" : (latestMsgAny.senderPublicKey || (receiver?.user as any)?.publicKey || "")) as string,
         identityPrivateKey || ""
       )
       if (!raw) return "Encrypted Message"
@@ -58,18 +61,18 @@ export default function ConversationItem({
     return text
   }, [latestMessages?.[conversation._id]?._id, (conversation.lastMessage as any)?._id, currentUser?.id, identityPrivateKey, receiver?.user?.publicKey, conversation._id])
 
-  const displayName = conversation.type === "group" ? conversation.groupName || "Group Chat" : receiver?.user?.username || "Private Participant"
+  const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : (receiver?.user as any)?.username || "Private Participant") as string
 
   return (
     <motion.div
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ scale: 1.005, y: -0.5 }}
+      whileTap={{ scale: 0.99, y: 0 }}
       onClick={() => onSelect?.(conversation._id)}
       className={cn(
-        "flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-300 relative overflow-hidden group mb-1",
+        "flex items-center gap-3 p-3.5 rounded-2xl cursor-pointer transition-all duration-300 relative overflow-hidden group mb-1 border",
         isActive 
-          ? "bg-white shadow-lg shadow-brand-primary/5 ring-1 ring-white" 
-          : "hover:bg-white/40"
+          ? "bg-white/80 border-white shadow-md shadow-black/5" 
+          : "bg-transparent border-transparent hover:bg-white/30"
       )}
     >
       {isActive && (
@@ -79,40 +82,45 @@ export default function ConversationItem({
         />
       )}
 
-      {/* Avatar */}
-      <div className="w-14 h-14 rounded-2xl bg-brand-primary/5 flex items-center justify-center overflow-hidden shrink-0 border border-brand-primary/10">
-        {conversation.type === "group" && conversation.groupAvatar?.url ? (
-          <img src={conversation.groupAvatar.url} className="w-full h-full object-cover" alt={displayName} />
-        ) : receiver?.user?.avatar ? (
-          <img src={receiver.user.avatar} className="w-full h-full object-cover" alt={displayName} />
-        ) : (
-          <span className="font-bold text-brand-primary text-xl">
-            {displayName.charAt(0).toUpperCase()}
-          </span>
+      {/* Avatar Container */}
+      <div className="relative shrink-0 select-none">
+        <div className="w-11 h-11 rounded-xl bg-brand-primary/10 flex items-center justify-center overflow-hidden border border-brand-primary/20 shadow-inner">
+          {conversation.type === "group" && conversation.groupAvatar?.url ? (
+            <img src={conversation.groupAvatar.url} className="w-full h-full object-cover" alt={displayName} />
+          ) : receiver?.user?.avatar ? (
+            <img src={receiver.user.avatar as string} className="w-full h-full object-cover" alt={displayName} />
+          ) : (
+            <span className="font-bold text-brand-primary text-lg">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+          )}
+        </div>
+        {conversation.type !== "group" && isOnline && (
+          <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-sm" />
         )}
       </div>
 
       {/* Info */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex justify-between items-baseline mb-0.5">
-          <span className="font-bold text-gray-900 truncate tracking-tight">
+        <div className="flex justify-between items-baseline mb-0.5 select-none">
+          <span className="font-bold text-gray-900 truncate tracking-tight text-[14px]">
             {displayName}
           </span>
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter shrink-0 ml-2">
+          <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tight shrink-0 ml-2">
             {formatDate(conversation.updatedAt)}
           </span>
         </div>
 
         <div className="flex justify-between items-center">
           <span className={cn(
-            "truncate text-sm font-medium",
-            isTyping ? "text-brand-primary animate-pulse" : "text-gray-500"
+            "truncate text-[13px] font-medium leading-normal",
+            isTyping ? "text-brand-primary animate-pulse font-semibold" : "text-gray-500"
           )}>
-            {isTyping ? "Typing..." : displayText}
+            {isTyping ? "Typing..." : displayName === "Private Participant" ? "Click to verify crypto session" : displayText}
           </span>
 
           {unreadCount > 0 && (
-            <div className="min-w-[20px] h-5 px-1.5 bg-brand-primary text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm shadow-brand-primary/20">
+            <div className="min-w-[18px] h-[18px] px-1 bg-brand-primary text-white rounded-lg flex items-center justify-center text-[9px] font-black shadow-sm shadow-brand-primary/20 flex-shrink-0 select-none">
               {unreadCount}
             </div>
           )}

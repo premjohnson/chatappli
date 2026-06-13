@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '../../utils/cn';
 
-interface GlassPanelProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface GlassPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
@@ -9,12 +9,14 @@ export function GlassPanel({ children, className, ...props }: GlassPanelProps) {
   return (
     <div
       className={cn(
-        'glass-panel backdrop-blur-3xl h-full w-full',
+        'liquid-refinement h-full w-full relative overflow-hidden',
         className
       )}
       {...props}
     >
-      {children}
+      <div className="relative z-10 h-full w-full">
+        {children}
+      </div>
     </div>
   );
 }

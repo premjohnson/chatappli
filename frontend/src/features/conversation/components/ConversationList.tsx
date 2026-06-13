@@ -1,15 +1,18 @@
 import { useMyConversations } from "../hooks/useMyConversations"
 import { useChatStore } from "../../../store/chat.store"
+import { useAuthStore } from "../../../store/auth.store"
 import ConversationItem from "./ConversationItem"
 
-export default function ConversationList() {
+interface ConversationListProps {
+  searchQuery?: string
+}
 
+export default function ConversationList({ searchQuery = "" }: ConversationListProps) {
   const { data, isLoading } = useMyConversations()
   const activeConversationId = useChatStore((s) => s.activeConversationId)
   const setActiveConversation = useChatStore((s) => s.setActiveConversation)
+  const currentUser = useAuthStore((s) => s.user)
 
-  // ✅ Simplified: Just set active conversation
-  // Mark-as-read is handled by ChatWindow with proper idempotency guards
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversation(conversationId)
   }
@@ -33,18 +36,33 @@ export default function ConversationList() {
   const conversations = data ?? []
   if (!Array.isArray(conversations)) return null
 
-  if (conversations.length === 0) {
+  const filteredConversations = conversations.filter((c) => {
+    if (!searchQuery.trim()) return true
+    const query = searchQuery.toLowerCase()
+    if (c.type === "group") {
+      return c.groupName?.toLowerCase().includes(query)
+    }
+    const receiver = c.participants.find((p) => p.user?.id !== currentUser?.id)
+    return (receiver?.user?.username as string | undefined)?.toLowerCase().includes(query)
+  })
+
+  if (filteredConversations.length === 0) {
     return (
-      <div className="text-center text-gray-500 mt-6 text-sm">
-        No conversations yet.
+      <div className="text-center py-8 px-4 flex flex-col items-center select-none">
+        <div className="w-12 h-12 rounded-2xl bg-gray-900/5 flex items-center justify-center mb-3">
+          <span className="text-gray-400 text-lg">💬</span>
+        </div>
+        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">No chats found</p>
+        <p className="text-[11px] text-gray-400 mt-1 max-w-[180px] leading-relaxed font-semibold">
+          {searchQuery ? "Try searching for a different username." : "Start a new workspace session to begin."}
+        </p>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col">
-
-      {conversations.map((conversation) => (
+      {filteredConversations.map((conversation) => (
         <ConversationItem
           key={conversation._id}
           conversation={conversation}
@@ -52,7 +70,6 @@ export default function ConversationList() {
           onSelect={handleSelectConversation}
         />
       ))}
-
     </div>
   )
 }

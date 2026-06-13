@@ -9,6 +9,7 @@ export const registerSocketListeners = () => {
   if (!socket) return
 
   socket.off(MESSAGE_EVENTS.NEW)
+  socket.off("liveblock:update")
 
   socket.on(MESSAGE_EVENTS.NEW, (message: Message) => {
 
@@ -36,6 +37,23 @@ export const registerSocketListeners = () => {
       )
     })
 
+  })
+
+  socket.on("liveblock:update", (update: {
+    blockId: string
+    state: any
+    version: number
+    isFrozen: boolean
+  }) => {
+    queryClient.setQueryData(["liveblock", update.blockId], (old: any) => {
+      if (!old) return old
+      return {
+        ...old,
+        state: update.state,
+        version: update.version,
+        isFrozen: update.isFrozen,
+      }
+    })
   })
 
 }

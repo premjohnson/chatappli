@@ -36,8 +36,20 @@ const editHistorySchema = new Schema(
       default: Date.now,
     },
   },
-  { _id: false }
+  { 
+    _id: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
+
+editHistorySchema.virtual("oldContent")
+  .get(function () {
+    return this.previousContent;
+  })
+  .set(function (val) {
+    this.previousContent = val;
+  });
 
 
 const messageSchema = new Schema(
@@ -155,6 +167,10 @@ const messageSchema = new Schema(
 
     editHistory: [editHistorySchema],
     editedAt: Date,
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
 
     //sender device tracking for push notifications
 

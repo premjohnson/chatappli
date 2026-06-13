@@ -8,6 +8,7 @@ import { connectRedis, disconnectRedis } from "./config/redis.js";
 import logger from "./config/logger.js";
 
 import { initSocket, closeSocket } from "./socket/socket.server.js";
+import { startLiveBlockWorker } from "./config/queue.js";
 
 let server;
 
@@ -35,6 +36,9 @@ const startServer = async () => {
   try {
     await connectDB();
     await connectRedis();
+
+    // Start BullMQ Worker
+    startLiveBlockWorker();
 
     server = http.createServer(app);
 
