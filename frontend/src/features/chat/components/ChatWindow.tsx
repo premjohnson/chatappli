@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Shield, Lock, Key } from "lucide-react"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
+import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -20,8 +21,8 @@ export function ChatWindow() {
   const [showUserInfo, setShowUserInfo] = useState(false)
 
   const currentConvo = conversations?.find((c: Conversation) => c._id === activeConversationId)
-  const receiver = currentConvo?.participants.find((p: ConversationParticipant) => p._id !== currentUser?.id)
-  const receiverId = receiver?._id || ""
+  const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
+  const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
   const markedConvosRef = useRef<Set<string>>(new Set())
 

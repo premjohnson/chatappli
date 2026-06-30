@@ -52,3 +52,14 @@ export interface CreateGroupConversationPayload {
   participants: string[]
   avatar?: File
 }
+
+export function getParticipantUserId(p: ConversationParticipant | undefined | null): string {
+  if (!p) return "";
+  const userObj = p.user as { _id?: string; id?: string } | undefined;
+  return userObj?._id || userObj?.id || p._id || "";
+}
+
+export function isParticipantCurrentUser(p: ConversationParticipant | undefined | null, currentUserId?: string): boolean {
+  if (!currentUserId || !p) return false;
+  return getParticipantUserId(p) === currentUserId;
+}

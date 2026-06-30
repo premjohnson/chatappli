@@ -2,7 +2,8 @@ import express from "express";
 import {
   registerDevice,
   getMyDevices,
-  revokeDevice
+  revokeDevice,
+  getDevicesByUserId
 } from "../controllers/device.controller.js";
 
 import protect from "../middlewares/protect.middleware.js";
@@ -16,6 +17,8 @@ router.use(protect);
 router.post("/", registerDevice);
 
 router.get("/", getMyDevices);
+
+router.get("/user/:userId", getDevicesByUserId);
 
 router.delete("/:deviceId", revokeDevice);
 

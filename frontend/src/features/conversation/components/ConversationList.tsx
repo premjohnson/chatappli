@@ -1,6 +1,7 @@
 import { useMyConversations } from "../hooks/useMyConversations"
 import { useChatStore } from "../../../store/chat.store"
 import { useAuthStore } from "../../../store/auth.store"
+import { isParticipantCurrentUser } from "../types/conversation.types"
 import ConversationItem from "./ConversationItem"
 
 interface ConversationListProps {
@@ -42,8 +43,9 @@ export default function ConversationList({ searchQuery = "" }: ConversationListP
     if (c.type === "group") {
       return c.groupName?.toLowerCase().includes(query)
     }
-    const receiver = c.participants.find((p) => p.user?.id !== currentUser?.id)
-    return (receiver?.user?.username as string | undefined)?.toLowerCase().includes(query)
+    const receiver = c.participants.find((p) => !isParticipantCurrentUser(p, currentUser?.id))
+    const receiverUsername = receiver?.username || (receiver?.user as any)?.username || ""
+    return receiverUsername.toLowerCase().includes(query)
   })
 
   if (filteredConversations.length === 0) {

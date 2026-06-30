@@ -23,6 +23,7 @@ class MessageService {
         conversationId,
         encryptedContent,
         nonce,
+        encryptedPayloads = [],
         type = "text",
         fileMeta,
         clientMessageId,
@@ -31,30 +32,125 @@ class MessageService {
         signature,
         senderDeviceId
       } = payload;
+      /* Validate encryption payload */
 
-      const conversation =
-        await ConversationRepository.findById(conversationId, session);
+        const hasLegacyPayload =
+          Boolean(encryptedContent && nonce);
+
+        if (!Array.isArray(encryptedPayloads)) {
+          throw new AppError(
+            "encryptedPayloads must be an array",
+            400
+          );
+        }
+
+        const hasMultiDevicePayload =
+          encryptedPayloads.length > 0;
+
+        if (!hasLegacyPayload && !hasMultiDevicePayload) {
+          throw new AppError(
+            "Encrypted payload is required",
+            400
+          );
+        }
+
+        if (hasMultiDevicePayload) {
+          const recipientDeviceIds = new Set();
+
+          encryptedPayloads.forEach(payload => {
+            if (
+              !payload?.recipientUser ||
+              !payload?.recipientDeviceId ||
+              !payload?.encryptedContent ||
+              !payload?.nonce
+            ) {
+              throw new AppError(
+                "Invalid encrypted payload",
+                400
+              );
+            }
+
+            if (recipientDeviceIds.has(payload.recipientDeviceId)) {
+              throw new AppError(
+                "Duplicate encrypted payload recipient device",
+                400
+              );
+            }
+
+            recipientDeviceIds.add(payload.recipientDeviceId);
+          });
+        }
+
+        const conversation =
+          await ConversationRepository.findById(
+            conversationId,
+            session
+          );
+
+        //*************************never forget this imp to verify *************************************
+        // console.log(
+        //         "participants:",
+        //         JSON.stringify(
+        //           conversation.participants,
+        //           null,
+        //           2
+        //         )
+        //       );//no need 
 
       if (!conversation)
         throw new AppError(ERROR_CODES.CONVERSATION_NOT_FOUND, 404);
 
-      const senderParticipant = conversation.participants.find(
-        p => p.user.equals(userId)
-      );
+        const senderParticipant = conversation.participants.find(
+          p => {
+            const participantId = p.user._id || p.user;
+            return participantId.equals(userId);
+          }
+        );
+
 
       if (!senderParticipant)
         throw new AppError(ERROR_CODES.NOT_PARTICIPANT, 403);
 
-      /* detect receiver */
+      if (
+          conversation.type === "group" &&
+          conversation.groupSettings?.onlyAdminsCanSend &&
+          !["owner", "admin"].includes(senderParticipant.role)
+        ) {
+          throw new AppError(
+            "Only admins can send messages",
+            403
+          );
+        }
 
-      const receiverParticipant = conversation.participants.find(
-        p => !p.user.equals(userId)
+      const participantUserIds = conversation.participants.map(p => {
+        const participantId = p.user._id || p.user;
+        return participantId;
+      });
+
+      const recipientIds = participantUserIds.filter(
+        participantId => !participantId.equals(userId)
       );
 
-      const receiverId = receiverParticipant?.user;
+      /* detect receiver newly merge part */
+        let receiverId = null;
 
-      if (!receiverId)
-        throw new AppError(ERROR_CODES.RECEIVER_NOT_FOUND, 404);
+        if (conversation.type === "private") {
+          receiverId = recipientIds[0] || null;
+
+          if (!receiverId) {
+            throw new AppError(
+              ERROR_CODES.RECEIVER_NOT_FOUND,
+              404
+          );
+        }
+      }
+
+      if (recipientIds.length === 0) {
+        throw new AppError(
+          ERROR_CODES.RECEIVER_NOT_FOUND,
+          404
+        );
+      }
 
       /* idempotency */
 
@@ -66,55 +162,117 @@ class MessageService {
             session
           );
 
-        if (existing) return existing;
+        if (existing) {
+          return {
+            message: existing,
+            conversationType: conversation.type,
+            receiverId,
+            recipientIds
+          };
+        }
       }
 
       /* create message */
-
+     //i cmt for for few changes becuz for multi device encyption
       const savedMessage =
-        await MessageRepository.create({
-          conversation: conversationId,
-          sender: userId,
-          receiver: receiverId,
-          encryptedContent,
-          nonce,
-          type,
-          fileMeta,
-          replyTo,
-          forwardedFrom,
-          signature,
-          senderDeviceId,
-          clientMessageId
-        }, session);
+      await MessageRepository.create({
+              conversation: conversationId,
+              sender: userId,
+              receiver: receiverId,
+
+              // Legacy
+              encryptedContent,
+              nonce,
+
+              // Multi-device
+              encryptedPayloads,
+
+              deliveryReceipts: recipientIds.map(recipientId => ({
+                user: recipientId
+              })),
+
+              type,
+              fileMeta,
+              replyTo,
+              forwardedFrom,
+              signature,
+              senderDeviceId,
+              clientMessageId
+            }, session);
+
 
       /* update conversation metadata */
 
-      conversation.lastMessage = savedMessage._id;
-      conversation.lastMessageAt = savedMessage.createdAt;
+      // conversation.lastMessage = savedMessage._id;
+      // conversation.lastMessageAt = savedMessage.createdAt;
 
-      await ConversationRepository.save(conversation, session);
+      // await ConversationRepository.save(conversation, session);
 
-      await mongoose.model("Conversation").updateOne(
-        { 
-          _id: conversationId,
-          "participants.user": receiverId 
-        },
-        { 
-          $inc: { "participants.$.unreadCount": 1 } 
+      // await mongoose.model("Conversation").updateOne(
+      //   { 
+      //     _id: conversationId,
+      //     "participants.user": receiverId 
+      //   },
+      //   { 
+      //     $inc: { "participants.$.unreadCount": 1 } 
+      //   }
+      // ).session(session);
+
+      // /* Redis cache */
+
+      // if (redis?.isOpen) {
+
+      //   const redisKey = `chat:${conversationId}`;
+
+      //   await redis.rPush(redisKey, JSON.stringify(savedMessage));
+      //   await redis.lTrim(redisKey, -100, -1);
+      // }
+      /* update conversation metadata */
+        //for safty reason still group chat not implimented 
+        conversation.lastMessage = savedMessage._id;
+        conversation.lastMessageAt = savedMessage.createdAt;
+
+        await ConversationRepository.save(conversation, session);
+
+        if (recipientIds.length > 0) {
+
+          await mongoose.model("Conversation").updateOne(
+            {
+              _id: conversationId,
+              "participants.user": { $in: recipientIds }
+            },
+            {
+              $inc: {
+                "participants.$[recipient].unreadCount": 1
+              }
+            },
+            {
+              arrayFilters: [
+                {
+                  "recipient.user": { $in: recipientIds }
+                }
+              ]
+            }
+          ).session(session);
+
         }
-      ).session(session);
 
-      /* Redis cache */
+        /* Redis cache */
 
-      if (redis?.isOpen) {
+        if (redis?.isOpen) {
 
-        const redisKey = `chat:${conversationId}`;
+          const redisKey = `chat:${conversationId}`;
 
-        await redis.rPush(redisKey, JSON.stringify(savedMessage));
-        await redis.lTrim(redisKey, -100, -1);
-      }
-
-      return savedMessage;
+          await redis.rPush(redisKey, JSON.stringify(savedMessage));
+          await redis.lTrim(redisKey, -100, -1);
+        }
+      //now it return's type of convo we can impli socket handler for group chat
+      return{
+        message: savedMessage,
+        conversationType: conversation.type,
+        receiverId,
+        recipientIds
+      };
 
     });
 
@@ -122,30 +280,66 @@ class MessageService {
 
 //get messages in a conversation with pagination (cursor-based)
 
-  static async getMessages(conversationId, cursor = null, limit = 20) {
+    static async getMessages(
+      userId,
+      conversationId,
+      cursor = null,
+      limit = 20
+    ) {
 
-    const redis = getRedisClient();
-    const redisKey = `chat:${conversationId}`;
+      const conversation =
+        await ConversationRepository.findById(
+          conversationId
+        );
 
-    if (!cursor && redis?.isOpen) {
-
-      const cached = await redis.lRange(redisKey, -limit, -1);
-
-      if (cached.length > 0) {
-        return cached.map(m => JSON.parse(m));
+      if (!conversation) {
+        throw new AppError(
+          ERROR_CODES.CONVERSATION_NOT_FOUND,
+          404
+        );
       }
+
+      const isParticipant =
+        conversation.participants.some(
+          p =>
+            p.user._id
+              ? p.user._id.equals(userId)
+              : p.user.equals(userId)
+        );
+
+      if (!isParticipant) {
+        throw new AppError(
+          ERROR_CODES.NOT_PARTICIPANT,
+          403
+        );
+      }
+
+      const redis = getRedisClient();
+      const redisKey = `chat:${conversationId}`;
+
+      if (!cursor && redis?.isOpen) {
+
+        const cached =
+          await redis.lRange(
+            redisKey,
+            -limit,
+            -1
+          );
+
+        if (cached.length > 0) {
+          return cached.map(m => JSON.parse(m));
+        }
+      }
+
+      const messages =
+        await MessageRepository.findMessages(
+          conversationId,
+          cursor,
+          limit
+        );
+
+      return messages.reverse();
     }
-
-    const messages =
-      await MessageRepository.findMessages(
-        conversationId,
-        cursor,
-        limit
-      );
-
-    return messages.reverse();
-
-  }
 
 //edit message (only within 15 minutes of sending and only by sender)
 
@@ -193,6 +387,16 @@ class MessageService {
 
     const updatedMessage = await MessageRepository.save(message);
 
+    // Clear Redis cache to maintain consistency
+    try {
+      const redis = getRedisClient();
+      if (redis?.isOpen) {
+        await redis.del(`chat:${updatedMessage.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(`Failed to clear Redis cache in editMessage: ${err.message}`);
+    }
+
     // Broadcast update to all participants in conversation room
     try {
       const { getIO } = await import("../socket/socket.server.js");
@@ -213,7 +417,30 @@ class MessageService {
       await MessageRepository.findById(messageId);
 
     if (!message)
-      throw new Error("Message not found");
+      throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    const conversation =
+      await ConversationRepository.findById(message.conversation);
+
+    if (!conversation) {
+      throw new AppError(
+        ERROR_CODES.CONVERSATION_NOT_FOUND,
+        404
+      );
+    }
+
+    const isParticipant =
+      conversation.participants.some(p => {
+        const participantId = p.user._id || p.user;
+        return participantId.equals(userId);
+      });
+
+    if (!isParticipant) {
+      throw new AppError(
+        ERROR_CODES.NOT_PARTICIPANT,
+        403
+      );
+    }
 
     await MessageRepository.updateOne(
       { _id: messageId },
@@ -232,27 +459,118 @@ class MessageService {
       await MessageRepository.findById(messageId);
 
     if (!message)
-      throw new Error("Message not found");
+      throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    const conversation =
+      await ConversationRepository.findById(message.conversation);
+
+    if (!conversation) {
+      throw new AppError(
+        ERROR_CODES.CONVERSATION_NOT_FOUND,
+        404
+      );
+    }
+
+    const isParticipant =
+      conversation.participants.some(p => {
+        const participantId = p.user._id || p.user;
+        return participantId.equals(userId);
+      });
+
+    if (!isParticipant) {
+      throw new AppError(
+        ERROR_CODES.NOT_PARTICIPANT,
+        403
+      );
+    }
 
     if (!message.sender.equals(userId))
-      throw new Error("Unauthorized");
+      throw new AppError(ERROR_CODES.PERMISSION_DENIED, 403);
 
     const DELETE_WINDOW_MS = 15 * 60 * 1000;
 
     if (Date.now() - message.createdAt.getTime() > DELETE_WINDOW_MS)
-      throw new Error("Delete window expired");
+      throw new AppError(ERROR_CODES.WINDOW_EXPIRED, 400);
 
     message.isDeletedForEveryone = true;
     message.deleteForEveryoneAt = new Date();
 
     message.encryptedContent = null;
     message.nonce = null;
+    message.encryptedPayloads = [];
     message.fileMeta = undefined;
 
     message.type = "system";
     message.editedAt = new Date();
 
-    return MessageRepository.save(message);
+    const savedMessage = await MessageRepository.save(message);
+
+    // Clear Redis cache to maintain consistency
+    try {
+      const redis = getRedisClient();
+      if (redis?.isOpen) {
+        await redis.del(`chat:${savedMessage.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(`Failed to clear Redis cache in deleteForEveryone: ${err.message}`);
+    }
+
+    return savedMessage;
+
+  }
+
+//marks as delivered msg
+
+  static async markAsDelivered(messageId, userId) {
+
+    const message =
+      await MessageRepository.findById(messageId);
+
+    if (!message)
+      throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    const conversation =
+      await ConversationRepository.findById(message.conversation);
+
+    if (!conversation)
+      throw new AppError(ERROR_CODES.CONVERSATION_NOT_FOUND, 404);
+
+    const isParticipant =
+      conversation.participants.some(p => {
+        const participantId = p.user._id || p.user;
+        return participantId.equals(userId);
+      });
+
+    if (!isParticipant)
+      throw new AppError(ERROR_CODES.NOT_PARTICIPANT, 403);
+
+    if (message.sender.equals(userId))
+      return message;
+
+    const now = new Date();
+
+    await MessageRepository.markReceiptDelivered(
+      messageId,
+      userId,
+      now
+    );
+
+    const updatedMessage =
+      await MessageRepository.findById(messageId);
+
+    try {
+      const redis = getRedisClient();
+
+      if (redis?.isOpen) {
+        await redis.del(`chat:${message.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(
+        `Failed to clear Redis cache in markAsDelivered: ${err.message}`
+      );
+    }
+
+    return updatedMessage;
 
   }
 
@@ -263,48 +581,85 @@ class MessageService {
     return TransactionManager.run(async (session) => {
 
       const conversation =
-        await ConversationRepository.findById(conversationId, session);
+        await ConversationRepository.findById(
+          conversationId,
+          session
+        );
 
       if (!conversation)
-        throw new Error("Conversation not found");
+        throw new AppError(ERROR_CODES.CONVERSATION_NOT_FOUND, 404);
 
-      const participant = conversation.participants.find(
-        p => p.user.equals(userId)
-      );
+      const participant = conversation.participants.find((p) => {
+        const participantId = p.user._id || p.user;
+        return participantId.equals(userId);
+      });
 
       if (!participant)
-        throw new Error("Not a participant");
+        throw new AppError(ERROR_CODES.NOT_PARTICIPANT, 403);
 
-      /* find unread messages */
+      const unreadMessages =
+        await MessageRepository.findUnreadMessagesForUser(
+          conversationId,
+          userId,
+          session
+        );
 
-      const unreadMessages = await Message.find({
-        conversation: conversationId,
-        sender: { $ne: userId },
-        status: { $ne: "read" }
-      }).session(session);
+      if (unreadMessages.length === 0) {
+        participant.unreadCount = 0;
+        participant.lastReadAt = new Date();
 
-      if (unreadMessages.length === 0)
+        await ConversationRepository.save(
+          conversation,
+          session
+        );
+
         return [];
+      }
 
-      /* update status */
+      const now = new Date();
+      const messageIds = unreadMessages.map(message => message._id);
 
-      await MessageRepository.updateMany(
-        { _id: { $in: unreadMessages.map(m => m._id) } },
-        {
-          $set: {
-            status: "read",
-            readAt: new Date()
-          }
-        },
-        session
+      await Promise.all(
+        messageIds.map(messageId =>
+          MessageRepository.markReceiptRead(
+            messageId,
+            userId,
+            now,
+            session
+          )
+        )
       );
 
       participant.unreadCount = 0;
-      participant.lastReadAt = new Date();
+      participant.lastReadAt = now;
 
-      await ConversationRepository.save(conversation, session);
+      await ConversationRepository.save(
+        conversation,
+        session
+      );
 
-      return unreadMessages;
+      const updatedMessages =
+        await Message.find({
+          _id: { $in: messageIds }
+        }).session(session);
+
+      try {
+
+        const redis = getRedisClient();
+
+        if (redis?.isOpen) {
+          await redis.del(`chat:${conversationId}`);
+        }
+
+      } catch (err) {
+
+        logger.warn(
+          `Failed to clear Redis cache in markAsRead: ${err.message}`
+        );
+
+      }
+
+      return updatedMessages;
 
     });
 

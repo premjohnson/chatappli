@@ -47,12 +47,25 @@ export const encryptMessage = (
   }
 }
 
+const isValidBase64 = (str: string): boolean => {
+  if (!str || typeof str !== "string") return false
+  return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(str)
+}
+
 export const decryptMessage = (
   encryptedContent: string,
   nonce: string,
   senderPublicKey: string,
   receiverSecretKey: string
 ) => {
+  if (
+    !isValidBase64(encryptedContent) ||
+    !isValidBase64(nonce) ||
+    !isValidBase64(senderPublicKey) ||
+    !isValidBase64(receiverSecretKey)
+  ) {
+    return "[Encrypted message]"
+  }
 
   try {
 
@@ -69,13 +82,13 @@ export const decryptMessage = (
       receiverSecretKeyUint8
     )
 
-    if (!decrypted) return null
+    if (!decrypted) return "[Encrypted message]"
 
     return util.encodeUTF8(decrypted)
 
   } catch (err) {
 
     console.warn("Decryption failed", err)
-    return null
+    return "[Encrypted message]"
   }
 }

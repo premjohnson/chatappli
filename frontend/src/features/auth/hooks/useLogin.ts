@@ -24,6 +24,23 @@ export const useLogin = () => {
       setAccessToken(accessToken)
       setAuth(user, accessToken)
 
+      // Check if device keys already exist for this user in localStorage
+      const storedKeysRaw = localStorage.getItem(`device-keys-${user.id}`)
+      if (storedKeysRaw) {
+        try {
+          const storedKeys = JSON.parse(storedKeysRaw)
+          setDeviceKeys(
+            storedKeys.deviceId,
+            storedKeys.publicKey,
+            storedKeys.secretKey
+          )
+          navigate("/chat")
+          return
+        } catch (e) {
+          console.error("Failed to load persisted device keys:", e)
+        }
+      }
+
       // 1. Generate identity keys locally
       const deviceId = `device-${Date.now()}`
       const identityKeys = generateKeyPair()
@@ -44,6 +61,13 @@ export const useLogin = () => {
           identityKeys.publicKey,
           identityKeys.secretKey
         )
+
+        // 4. Also persist in user-specific localStorage to survive logout
+        localStorage.setItem(`device-keys-${user.id}`, JSON.stringify({
+          deviceId,
+          publicKey: identityKeys.publicKey,
+          secretKey: identityKeys.secretKey
+        }))
 
       } catch (e) {
         console.error("Failed to register crypto device:", e)

@@ -1,17 +1,24 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { sendMessageApi } from "../api/sendMessage.api"
 import { useAuthStore } from "../../../store/auth.store"
-import type { Message } from "../types/message.types"
+import type { EncryptedPayload, Message } from "../types/message.types"
 import type { Conversation } from "../../conversation/types/conversation.types"
 
-interface SendMessagePayload {
-  conversationId: string;
-  encryptedContent: string;
-  nonce: string;
-  clientMessageId: string;
-  type?: string;
-}
+    interface SendMessagePayload {
+      conversationId: string;
 
+      // Legacy (temporary)
+      encryptedContent?: string;
+      nonce?: string;
+
+      // New multi-device payload
+      encryptedPayloads?: EncryptedPayload[];
+
+      clientMessageId: string;
+      type?: string;
+      senderDeviceId?: string;
+      signature?: string;
+    }
 export const useSendMessage = () => {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
@@ -34,20 +41,26 @@ export const useSendMessage = () => {
             _id: `temp-${Date.now()}`,
             conversation: newMsgPayload.conversationId,
             sender: user?.id || "",
-            encryptedContent: newMsgPayload.encryptedContent,
-            nonce: newMsgPayload.nonce,
+            encryptedContent:
+              newMsgPayload.encryptedContent ?? "",
+
+            nonce:
+              newMsgPayload.nonce ?? "",
+
+            encryptedPayloads:
+              newMsgPayload.encryptedPayloads ?? [],
             type: (newMsgPayload.type as "text" | "image" | "file" | "system") || "text",
-            status: "sent",
+            deliveryReceipts: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             clientMessageId: newMsgPayload.clientMessageId
           }
 
-          // In infinite queries, pages[0] contains the NEWEST messages (if reversed on UI). 
-          // Wait, the API returns the newest messages first (DESC).
-          // So we unshift into pages[0].
+          // In infinite queries, pages[0] contains the NEWEST messages on that page.
+          // Since the API returns the messages in ascending order (oldest first),
+          // we append (push) the optimistic message to the end of pages[0].
           const newPages = [...old.pages]
-          newPages[0] = [optimisticMsg, ...newPages[0]]
+          newPages[0] = [...newPages[0], optimisticMsg]
 
           return {
             ...old,

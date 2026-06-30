@@ -25,7 +25,8 @@ const SOCKET_CONFIG: Partial<ManagerOptions & SocketOptions> = {
 /* ================= EVENTS ================= */
 
 export const MESSAGE_EVENTS = {
-  SEND: "message:send",
+  //no use 
+  // SEND: "message:send",
   NEW: "message:new",
   DELIVERED: "message:delivered",
   READ: "message:read",
@@ -68,8 +69,34 @@ export const connectSocket = (token: string): Socket | null => {
     console.warn("[Socket] Disconnected:", reason)
   })
 
-  socket.on("connect_error", (err) => {
+  socket.on("connect_error", async (err) => {
     console.error("[Socket] Error:", err.message)
+
+    // Auto-refresh token if connection fails due to expired or invalid JWT
+    if (err.message.includes("expired") || err.message.includes("JWT") || err.message.includes("auth")) {
+      console.log("[Socket] Token expired or invalid, attempting automatic refresh...")
+      try {
+        const axios = (await import("axios")).default
+        const apiPrefix = import.meta.env.VITE_API_URL || "http://localhost:5013/api/v1"
+
+        const res = await axios.post(
+          `${apiPrefix}/auth/refresh`,
+          {},
+          { withCredentials: true }
+        )
+
+        const newToken = res.data.accessToken
+
+        // Update Zustand store
+        const { useAuthStore } = await import("../store/auth.store")
+        useAuthStore.getState().updateToken(newToken)
+
+        // Reconnect socket with the new token
+        updateSocketAuth(newToken)
+      } catch (refreshErr) {
+        console.error("[Socket] Automatic refresh token failed:", refreshErr)
+      }
+    }
   })
 
   return socket
@@ -125,19 +152,7 @@ const flushOperationQueue = () => {
   })
 }
 
-/* ================= EMITTERS ================= */
 
-export const emitSendMessage = (payload: {
-  conversationId: string
-  encryptedContent: string
-  nonce: string
-  clientMessageId: string
-}) => {
-
-  const op = () => socket?.emit(MESSAGE_EVENTS.SEND, payload)
-
-  socket?.connected ? op() : queueOperation(op)
-}
 
 export const joinConversationRoom = (conversationId: string) => {
 

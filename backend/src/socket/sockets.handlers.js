@@ -23,13 +23,36 @@ export const  registerSocketHandlers = async  (io, socket) => {
   try {
     const conversations = await mongoose.model("Conversation").find({
       "participants.user": userId
-    }, { _id: 1 }).lean();
+    }, { _id: 1, "participants.user": 1 }).lean();
 
     await Promise.all(
       conversations.map(conv => socket.join(conv._id.toString()))
     );
+
+    // Get all unique participant IDs
+    const participantIds = new Set();
+    conversations.forEach(conv => {
+      conv.participants.forEach(p => {
+        if (p.user && p.user.toString() !== userId.toString()) {
+          participantIds.add(p.user.toString());
+        }
+      });
+    });
+
+    // Check online status for each participant
+    const presenceMap = {};
+    const { default: PresenceService } = await import("../services/presence.service.js");
+    await Promise.all(
+      Array.from(participantIds).map(async (pid) => {
+        const isOnline = await PresenceService.isOnline(pid);
+        presenceMap[pid] = isOnline;
+      })
+    );
+
+    // Emit presence sync map to the connected client
+    socket.emit("presence:sync", presenceMap);
   } catch (error) {
-    logger.error(`Error joining conversation rooms for ${userId}:`, error);
+    logger.error(`Error joining rooms / syncing presence for ${userId}:`, error);
   }
 
   socket.typingConversations = new Set();
@@ -40,5 +63,35 @@ export const  registerSocketHandlers = async  (io, socket) => {
   await presenceHandler(io, socket);
   typingHandler(io, socket);
   liveblockHandler(io, socket);
+
+  /* dynamic room management */
+
+  socket.on("join:room", async ({ conversationId }) => {
+    try {
+      if (!mongoose.Types.ObjectId.isValid(conversationId)) {
+        return;
+      }
+      const conversation = await mongoose.model("Conversation").findOne({
+        _id: conversationId,
+        "participants.user": userId
+      }, { _id: 1 }).lean();
+
+      if (conversation) {
+        socket.join(conversationId);
+        logger.info(`Socket ${socket.id} dynamically joined conversation room: ${conversationId}`);
+      }
+    } catch (err) {
+      logger.error(`Error joining room ${conversationId}:`, err);
+    }
+  });
+
+  socket.on("leave:room", async ({ conversationId }) => {
+    try {
+      socket.leave(conversationId);
+      logger.info(`Socket ${socket.id} dynamically left conversation room: ${conversationId}`);
+    } catch (err) {
+      logger.error(`Error leaving room ${conversationId}:`, err);
+    }
+  });
 
 };

@@ -1,5 +1,6 @@
 import axios from "axios"
-import { connectSocket, disconnectSocket } from "./socket"
+import { updateSocketAuth } from "./socket"
+import { useAuthStore } from "../store/auth.store"
 
 const API_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5013/api/v1"
@@ -8,6 +9,17 @@ const api = axios.create({
   baseURL: API_URL,
   withCredentials: true
 })
+
+api.interceptors.request.use(
+  (config) => {
+    const token = useAuthStore.getState().accessToken
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
 
 /* ================= REFRESH QUEUE ================= */
 
@@ -72,14 +84,20 @@ api.interceptors.response.use(
 
       const newToken = res.data.accessToken
 
+      // Update Zustand store so subsequent requests get the new token
+      useAuthStore.getState().updateToken(newToken)
+
+      // Update axios default header
       api.defaults.headers.common.Authorization = `Bearer ${newToken}`
+
+      // Update originalRequest header for the retried request
+      originalRequest.headers.Authorization = `Bearer ${newToken}`
 
       processQueue(null, newToken)
 
       /* ================= SOCKET RECONNECT ================= */
 
-      disconnectSocket()
-      connectSocket(newToken)
+      updateSocketAuth(newToken)
 
       return api(originalRequest)
 

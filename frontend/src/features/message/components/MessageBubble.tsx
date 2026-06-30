@@ -5,38 +5,100 @@ import { motion } from "framer-motion"
 import { cn } from "../../../utils/cn"
 import { LiveBlockWidget } from "../../chat/components/LiveBlockWidget"
 import { Check, CheckCheck } from "lucide-react"
+import { useAuthStore } from "../../../store/auth.store"
+import type { Device } from "../../device/types/device.types"
 
 interface Props {
   msg: Message
   identityPrivateKey: string | null
-  isSent: boolean
   receiverPublicKey: string
+  receiverDevices?: Device[]
+  senderDevices?: Device[]
 }
 
 const MessageBubble = memo(({
   msg,
   identityPrivateKey,
-  isSent,
-  receiverPublicKey
+  receiverPublicKey,
+  receiverDevices,
+  senderDevices
 }: Props) => {
+  const currentUser = useAuthStore((s) => s.user)
+  const currentDeviceId = useAuthStore((s) => s.deviceId)
+
+  const isSent = msg.sender === currentUser?.id
 
   const decryptedText = useMemo(() => {
-    if (!msg.encryptedContent || !msg.nonce || !identityPrivateKey) return ""
-    try {
-      const text = decryptMessage(
-        msg.encryptedContent as string,
-        msg.nonce as string,
-        isSent
-          ? receiverPublicKey
-          : (msg.senderPublicKey || receiverPublicKey) as string,
-        identityPrivateKey as string
-      )
-      return text || "[Encrypted message]"
-    } catch {
-      return "[Encrypted message]"
+    if (msg.type === "system") {
+      return msg.encryptedContent ?? ""
     }
-  }, [msg.encryptedContent, msg.nonce, identityPrivateKey, receiverPublicKey, isSent])
 
+    if (!identityPrivateKey) {
+      return "[Decryption keys missing]"
+    }
+
+    const encryptedPayload = currentDeviceId
+      ? msg.encryptedPayloads?.find(
+          payload => payload.recipientDeviceId === currentDeviceId
+        )
+      : undefined
+
+    let encryptedContent = msg.encryptedContent
+    let nonce = msg.nonce
+
+    // New multi-device message
+    if (msg.encryptedPayloads?.length) {
+      if (!currentDeviceId) {
+        return "[Device id missing]"
+      }
+      if (!encryptedPayload) {
+        return "[Unable to decrypt message]"
+      }
+      encryptedContent = encryptedPayload.encryptedContent
+      nonce = encryptedPayload.nonce
+    }
+    // Legacy message
+    else if (!encryptedContent || !nonce) {
+      return ""
+    }
+
+    // Determine the sender public key to use for decryption
+    let senderPublicKeyToUse = receiverPublicKey
+      if (msg.senderDeviceId) {
+        const senderDevice = isSent
+          ? senderDevices?.find(d => d.deviceId === msg.senderDeviceId)
+          : receiverDevices?.find(d => d.deviceId === msg.senderDeviceId)
+
+        if (!senderDevice) {
+          return "[Unable to decrypt message]"
+        }
+
+        senderPublicKeyToUse = senderDevice.publicKey
+      }
+
+     if (!senderPublicKeyToUse) {
+        return "[Unable to decrypt message]"
+      }
+
+      return decryptMessage(
+        encryptedContent,
+        nonce,
+        senderPublicKeyToUse,
+        identityPrivateKey
+      )
+  }, [
+      msg.encryptedContent,
+      msg.nonce,
+      msg.encryptedPayloads,
+      receiverPublicKey,
+      receiverDevices,
+      senderDevices,
+      identityPrivateKey,
+      msg.type,
+      isSent,
+      msg.senderDeviceId,
+      currentDeviceId
+    ])
   const parsedMessage = useMemo(() => {
     if (!decryptedText) return { text: "", isLiveBlock: false, blockId: "" }
     let text = decryptedText
@@ -68,6 +130,24 @@ const MessageBubble = memo(({
     hour: "2-digit",
     minute: "2-digit"
   })
+
+  const receiptState = useMemo(() => {
+    const receipts = msg.deliveryReceipts || []
+
+    if (receipts.length === 0) {
+      return "sent"
+    }
+
+    if (receipts.every((receipt) => Boolean(receipt.readAt))) {
+      return "read"
+    }
+
+    if (receipts.every((receipt) => Boolean(receipt.deliveredAt || receipt.readAt))) {
+      return "delivered"
+    }
+
+    return "sent"
+  }, [msg.deliveryReceipts])
 
   return (
     <motion.div 
@@ -102,9 +182,9 @@ const MessageBubble = memo(({
           {isSent ? (
             <div className="flex items-center justify-end gap-1 select-none opacity-85 text-[9px] font-bold uppercase tracking-wider self-end mt-0.5">
               <span>{time}</span>
-              {msg.status === "read" ? (
+              {receiptState === "read" ? (
                 <CheckCheck className="w-3.5 h-3.5 text-brand-accent" />
-              ) : msg.status === "delivered" ? (
+              ) : receiptState === "delivered" ? (
                 <CheckCheck className="w-3.5 h-3.5 text-white/70" />
               ) : (
                 <Check className="w-3.5 h-3.5 text-white/70" />

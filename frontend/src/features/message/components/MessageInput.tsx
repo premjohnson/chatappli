@@ -8,8 +8,11 @@ import { Send, Paperclip, Smile, PlusCircle } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
 import { motion } from "framer-motion"
 import { CreateLiveBlockModal } from "../../chat/components/CreateLiveBlockModal"
-
+import { getUserDevices } from "../../device/device.service"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
+import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
+import type { Device } from "../../device/types/device.types"
+import type { EncryptedPayload } from "../types/message.types"
 
 interface Props {
   conversationId: string
@@ -34,31 +37,118 @@ export function MessageInput({ conversationId }: Props) {
   }
 
   const sendEncryptedMessage = async (messageText: string) => {
-    const { identityPrivateKey } = useAuthStore.getState()
-    if (!identityPrivateKey) return
+    const { identityPrivateKey, deviceId: senderDeviceId } = useAuthStore.getState()
+    if (!identityPrivateKey || !senderDeviceId) {
+      console.warn("Keys or deviceId missing on sender side")
+      return
+    }
 
     const currentConvo = conversations?.find((c: Conversation) => c._id === conversationId)
-    if (!currentConvo) return
+    if (!currentConvo) {
+      console.warn("Conversation not found")
+      return
+    }
 
-    const receiver = currentConvo.participants.find((p: ConversationParticipant) => p._id !== currentUser?.id)
-    const receiverPublicKey = (receiver?.publicKey || (receiver?.user as any)?.publicKey || "") as string
-    if (!receiverPublicKey) return
+    const receiver = currentConvo.participants.find(
+      (p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id)
+    )
+    const receiverUserId = getParticipantUserId(receiver)
+    if (!receiverUserId) {
+      console.warn("Receiver user ID not found")
+      return
+    }
+
+    const senderUserId = currentUser?.id
+    if (!senderUserId) {
+      console.warn("Sender user ID not found")
+      return
+    }
+
+    let receiverDevices: Device[] = []
+    let senderDevices: Device[] = []
+
+    try {
+      const [receiverActiveDevices, senderActiveDevices] = await Promise.all([
+        getUserDevices(receiverUserId),
+        getUserDevices(senderUserId)
+      ])
+
+      receiverDevices = receiverActiveDevices
+      senderDevices = senderActiveDevices
+    } catch (error) {
+      console.error("Failed to fetch active devices:", error)
+      return
+    }
+
+    if (receiverDevices.length === 0) {
+      console.warn("Receiver has no active devices")
+      return
+    }
 
     const payload = { text: messageText.trim(), file: null }
 
     try {
-      const { encryptedContent, nonce } = encryptMessage(JSON.stringify(payload), identityPrivateKey, receiverPublicKey)
+      const devicesById = new Map<string, { userId: string; device: Device }>()
+
+      receiverDevices.forEach((device) => {
+        devicesById.set(device.deviceId, {
+          userId: receiverUserId,
+          device
+        })
+      })
+
+      senderDevices.forEach((device) => {
+        if (!devicesById.has(device.deviceId)) {
+          devicesById.set(device.deviceId, {
+            userId: senderUserId,
+            device
+          })
+        }
+      })
+
+      const encryptedPayloads: EncryptedPayload[] = Array.from(devicesById.values()).map(
+        ({ userId, device }) => {
+          const { encryptedContent, nonce } = encryptMessage(
+            JSON.stringify(payload),
+            identityPrivateKey,
+            device.publicKey
+          )
+
+          return {
+            recipientUser: userId,
+            recipientDeviceId: device.deviceId,
+            encryptedContent,
+            nonce
+          }
+        }
+      )
+
+      if (
+        encryptedPayloads.length === 0 ||
+        encryptedPayloads.some(
+          (encryptedPayload) =>
+            !encryptedPayload.recipientUser ||
+            !encryptedPayload.recipientDeviceId ||
+            !encryptedPayload.encryptedContent ||
+            !encryptedPayload.nonce
+        )
+      ) {
+        console.warn("Invalid encrypted payloads generated")
+        return
+      }
+
       await mutateAsync({
         conversationId,
-        encryptedContent,
-        nonce,
+        encryptedPayloads,
         clientMessageId: crypto.randomUUID(),
-        type: "text"
+        senderDeviceId,
+        signature: ""
       })
+
     } catch (error) {
       console.error("Failed to send message:", error)
     }
-  }
+  };
 
   const send = async () => {
     if (!text.trim()) return

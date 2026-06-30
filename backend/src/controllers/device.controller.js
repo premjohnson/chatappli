@@ -39,3 +39,20 @@ export const revokeDevice = asyncHandler(async (req, res) => {
     status: 'success'
   });
 });
+
+export const getDevicesByUserId = asyncHandler(async (req, res) => {
+  const devices = await DeviceService.getUserDevices(req.params.userId);
+  
+  // Return list of active devices with their public keys
+  const sanitizedDevices = devices.map(d => ({
+    deviceId: d.deviceId,
+    publicKey: d.publicKey,
+    identityKey: d.identityKey,
+    signedPreKey: d.signedPreKey
+  }));
+
+  res.json({
+    status: 'success',
+    data: sanitizedDevices
+  });
+});

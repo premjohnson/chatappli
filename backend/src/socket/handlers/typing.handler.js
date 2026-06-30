@@ -66,6 +66,7 @@ export default function typingHandler(
           TYPING_EVENTS.TYPING_START,
 
           {
+            conversationId,
             userId: socket.userId
           }
         );
@@ -142,6 +143,7 @@ export default function typingHandler(
           TYPING_EVENTS.TYPING_STOP,
 
           {
+            conversationId,
             userId: socket.userId
           }
         );

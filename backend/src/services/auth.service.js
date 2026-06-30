@@ -46,8 +46,7 @@ class AuthService {
 
     const accessToken = generateAccessToken(user);
 
-    const { token, tokenId, tokenFamily } =
-      generateRefreshToken(user);
+    const { token, tokenId, tokenFamily } =  generateRefreshToken(user);
 
     const expirySeconds = this._getExpirySeconds(config.jwt.refreshExpires);
 

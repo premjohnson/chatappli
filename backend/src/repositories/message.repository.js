@@ -39,6 +39,114 @@ class MessageRepository {
     return Message.updateMany(filter, update, { session });
   }
 
+  static async findUnreadMessagesForUser(conversationId, userId, session = null) {
+    const query = Message.find({
+      conversation: conversationId,
+      sender: { $ne: userId },
+      isDeletedForEveryone: { $ne: true },
+      deletedFor: { $ne: userId },
+      deliveryReceipts: {
+        $not: {
+          $elemMatch: {
+            user: userId,
+            readAt: { $exists: true, $ne: null }
+          }
+        }
+      }
+    });
+
+    if (session) query.session(session);
+
+    return query;
+  }
+
+  static async markReceiptDelivered(messageId, userId, deliveredAt, session = null) {
+    const existingReceiptUpdate = await Message.updateOne(
+      {
+        _id: messageId,
+        "deliveryReceipts.user": userId
+      },
+      {
+        $set: {
+          "deliveryReceipts.$[receipt].deliveredAt": deliveredAt
+        }
+      },
+      {
+        session,
+        arrayFilters: [
+          {
+            "receipt.user": userId,
+            "receipt.deliveredAt": null
+          }
+        ]
+      }
+    );
+
+    if (existingReceiptUpdate.matchedCount > 0) {
+      return existingReceiptUpdate;
+    }
+
+    return Message.updateOne(
+      {
+        _id: messageId,
+        "deliveryReceipts.user": { $ne: userId }
+      },
+      {
+        $push: {
+          deliveryReceipts: {
+            user: userId,
+            deliveredAt
+          }
+        }
+      },
+      { session }
+    );
+  }
+
+  static async markReceiptRead(messageId, userId, readAt, session = null) {
+    const existingReceiptUpdate = await Message.updateOne(
+      {
+        _id: messageId,
+        "deliveryReceipts.user": userId
+      },
+      {
+        $set: {
+          "deliveryReceipts.$[receipt].readAt": readAt
+        }
+      },
+      {
+        session,
+        arrayFilters: [
+          {
+            "receipt.user": userId,
+            "receipt.readAt": null
+          }
+        ]
+      }
+    );
+
+    if (existingReceiptUpdate.matchedCount > 0) {
+      return existingReceiptUpdate;
+    }
+
+    return Message.updateOne(
+      {
+        _id: messageId,
+        "deliveryReceipts.user": { $ne: userId }
+      },
+      {
+        $push: {
+          deliveryReceipts: {
+            user: userId,
+            deliveredAt: readAt,
+            readAt
+          }
+        }
+      },
+      { session }
+    );
+  }
+
   /* ================= GET MESSAGES ================= */
 
   static async findMessages(conversationId, cursor, limit) {

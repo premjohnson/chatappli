@@ -1,6 +1,7 @@
 import asyncHandler from "../utils/asyncHandler.js";
 import mongoose from "mongoose";
 import MessageService from "../services/message.service.js";
+import { getIO } from "../socket/socket.server.js";
 
 
 //SEND MESSAGE
@@ -19,11 +20,57 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   }
 
-  const message =
+  const result =
     await MessageService.sendMessage(
       req.user._id,
       req.body
     );
+
+  const message = result.message || result;
+
+  try {
+    const io = getIO();
+    const senderId = req.user._id;
+    const recipientIds = result.recipientIds || [];
+
+    if (result.conversationType === "private") {
+      io.to(`user:${result.receiverId}`).emit("message:new", message);
+      io.to(`user:${senderId}`).emit("message:new", message);
+    } else {
+      io.to(message.conversation.toString()).emit("message:new", message);
+    }
+
+    const onlineRecipientIds = [];
+
+    await Promise.all(
+      recipientIds.map(async (recipientId) => {
+        const sockets =
+          await io.in(`user:${recipientId}`).allSockets();
+
+        if (sockets.size > 0) {
+          onlineRecipientIds.push(recipientId);
+        }
+      })
+    );
+
+    const deliveredMessages =
+      await Promise.all(
+        onlineRecipientIds.map(recipientId =>
+          MessageService.markAsDelivered(
+            message._id,
+            recipientId
+          )
+        )
+      );
+
+    deliveredMessages.forEach((deliveredMessage) => {
+      io.to(message.conversation.toString()).emit("message:delivered", {
+        message: deliveredMessage
+      });
+    });
+  } catch (err) {
+    console.warn("Failed to emit message socket events in sendMessage controller:", err.message);
+  }
 
   res.status(201).json({
     status: "success",
@@ -50,7 +97,8 @@ export const getMessages = asyncHandler(async (req, res) => {
   }
 
   const messages =
-    await MessageService.getMessages(
+      await MessageService.getMessages(
+      req.user._id,
       conversationId,
       cursor,
       parseInt(limit) || 20
@@ -116,6 +164,17 @@ export const markAsRead = asyncHandler(async (req, res) => {
       conversationId,
       req.user._id
     );
+
+  try {
+    const io = getIO();
+    updatedMessages.forEach(message => {
+      io.to(conversationId).emit("message:read", {
+        message
+      });
+    });
+  } catch (err) {
+    console.warn("Failed to emit message:read socket events in markAsRead controller:", err.message);
+  }
 
   res.json({
     status: "success",

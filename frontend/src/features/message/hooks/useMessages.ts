@@ -24,7 +24,8 @@ export const useMessages = (conversationId?: string) => {
         return undefined
       }
 
-      return lastPage[lastPage.length - 1]._id
+      // Return the oldest message ID on the page (index 0) since pages are in ascending order
+      return lastPage[0]._id
     },
 
     enabled: Boolean(conversationId && accessToken),

@@ -21,7 +21,7 @@ export function ChatLayout() {
         disconnectSocket()
       }
     }
-  }, [user, accessToken])
+  }, [user])
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-warm-gradient p-4 md:p-6 gap-4 md:gap-6 relative">

@@ -1,9 +1,12 @@
 import type { Conversation, ConversationParticipant } from "../types/conversation.types"
+import { getParticipantUserId, isParticipantCurrentUser } from "../types/conversation.types"
 import { formatDate } from "../../../utils/formatDate"
 import { useChatStore } from "../../../store/chat.store"
 import { useAuthStore } from "../../../store/auth.store"
 import { decryptMessage } from "../../../utils/crypto"
 import { useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { getUserDevices } from "../../device/device.service"
 import { motion } from "framer-motion"
 import { cn } from "../../../utils/cn"
 
@@ -25,15 +28,23 @@ export default function ConversationItem({
   const identityPrivateKey = useAuthStore((s) => s.identityPrivateKey)
 
   const receiver = conversation.type === "private"
-    ? conversation.participants.find((p: ConversationParticipant) => p.user?.id !== currentUser?.id)
+    ? conversation.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
     : null
 
-  const receiverId = (receiver?.user?.id || "") as string
+  const receiverId = getParticipantUserId(receiver)
   const isOnline = receiverId ? presenceMap[receiverId] || false : false
   const isTyping = typingMap?.[conversation._id]?.includes(receiverId) || false
 
-  const myParticipantData = conversation.participants.find((p) => p.user?.id === currentUser?.id)
+  const myParticipantData = conversation.participants.find((p) => isParticipantCurrentUser(p, currentUser?.id))
   const unreadCount = myParticipantData?.unreadCount || 0
+
+  const { data: receiverDevices } = useQuery({
+    queryKey: ["devices", "user", receiverId],
+    queryFn: () => getUserDevices(receiverId),
+    enabled: Boolean(receiverId)
+  })
+
+  const receiverPublicKey = receiverDevices?.[0]?.publicKey || ""
 
   const displayText = useMemo(() => {
     let text = "Click to view messages..."
@@ -42,12 +53,10 @@ export default function ConversationItem({
 
     try {
       const latestMsgAny = latestMsg as any
-      const senderId = typeof latestMsgAny.sender === "string" ? latestMsgAny.sender : latestMsgAny.sender?._id
-      const isSent = senderId === currentUser?.id
       const raw = decryptMessage(
         (latestMsgAny.encryptedContent || "") as string,
         (latestMsgAny.nonce || "") as string,
-        (isSent ? (receiver?.user as any)?.publicKey || "" : (latestMsgAny.senderPublicKey || (receiver?.user as any)?.publicKey || "")) as string,
+        receiverPublicKey,
         identityPrivateKey || ""
       )
       if (!raw) return "Encrypted Message"
@@ -59,9 +68,9 @@ export default function ConversationItem({
       } catch { text = raw }
     } catch { text = "Encrypted Message" }
     return text
-  }, [latestMessages?.[conversation._id]?._id, (conversation.lastMessage as any)?._id, currentUser?.id, identityPrivateKey, receiver?.user?.publicKey, conversation._id])
+  }, [latestMessages?.[conversation._id]?._id, (conversation.lastMessage as any)?._id, currentUser?.id, identityPrivateKey, receiverPublicKey, conversation._id])
 
-  const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : (receiver?.user as any)?.username || "Private Participant") as string
+  const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Private Participant") as string
 
   return (
     <motion.div

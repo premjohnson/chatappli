@@ -2,6 +2,7 @@ import { useChatStore } from "../../../store/chat.store"
 import { useAuthStore } from "../../../store/auth.store"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
+import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { motion } from "framer-motion"
 import { Info, ChevronLeft } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
@@ -19,12 +20,12 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
   const { data: conversations } = useMyConversations()
 
   const currentConvo = conversations?.find((c: Conversation) => c._id === conversationId) as Conversation | undefined
-  const receiver = currentConvo?.participants.find((p: ConversationParticipant) => p._id !== currentUser?.id)
-  const receiverId = receiver?._id || ""
+  const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
+  const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
   const isTyping = typingMap[conversationId || ""]?.includes(receiverId) || false
 
-  const displayName = currentConvo?.type === "group" ? currentConvo?.groupName || "Group Chat" : receiver?.username || "Unknown User"
+  const displayName = currentConvo?.type === "group" ? currentConvo?.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Unknown User"
   const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?"
 
   return (
@@ -43,8 +44,8 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
       {/* Avatar Container */}
       <div className="relative">
         <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold shadow-inner overflow-hidden border border-brand-primary/20">
-          {receiver?.avatar ? (
-            <img src={receiver.avatar} alt={displayName} className="w-full h-full object-cover" />
+          {receiver?.avatar || (receiver?.user as any)?.avatar ? (
+            <img src={receiver?.avatar || (receiver?.user as any)?.avatar} alt={displayName} className="w-full h-full object-cover" />
           ) : (
             <span className="text-xl">{displayInitial}</span>
           )}

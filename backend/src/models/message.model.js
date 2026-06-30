@@ -42,14 +42,55 @@ const editHistorySchema = new Schema(
     toObject: { virtuals: true }
   }
 );
+  const encryptedPayloadSchema = new Schema(
+    {
+      recipientUser: {
+        type: Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
 
-editHistorySchema.virtual("oldContent")
-  .get(function () {
-    return this.previousContent;
-  })
-  .set(function (val) {
-    this.previousContent = val;
-  });
+      recipientDeviceId: {
+        type: String,
+        required: true,
+      },
+
+      encryptedContent: {
+        type: String,
+        required: true,
+      },
+
+      nonce: {
+        type: String,
+        required: true,
+      },
+    },
+    { _id: false }
+  );
+ 
+
+    const receiptSchema = new Schema(
+      {
+        user: {
+          type: Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+
+        deliveredAt: Date,
+
+        readAt: Date,
+      },
+      { _id: false }
+    );
+
+  editHistorySchema.virtual("oldContent")
+    .get(function () {
+      return this.previousContent;
+    })
+    .set(function (val) {
+      this.previousContent = val;
+    });
 
 
 const messageSchema = new Schema(
@@ -74,28 +115,48 @@ const messageSchema = new Schema(
       ref: "User",
     },
 
-    /* ================= ENCRYPTION ================= */
+   /* ================= ENCRYPTION ================= */
 
-    encryptedContent: {
-      type: String,
-      required: function () {
-        return !this.isDeletedForEveryone;
+      /*
+      * Legacy single-device encryption.
+      * Kept temporarily for backward compatibility while
+      * migrating to multi-device encryption.
+      */
+      encryptedContent: {
+        type: String,
+        required: function () {
+          return (
+            !this.isDeletedForEveryone &&
+            (!this.encryptedPayloads || this.encryptedPayloads.length === 0)
+          );
+        },
       },
-    },
 
-    nonce: {
-      type: String,
-      required: function () {
-        return !this.isDeletedForEveryone;
+      nonce: {
+        type: String,
+        required: function () {
+          return (
+            !this.isDeletedForEveryone &&
+            (!this.encryptedPayloads || this.encryptedPayloads.length === 0)
+          );
+        },
       },
-    },
 
-    signature: String,
+      /*
+      * Multi-device encrypted payloads.
+      * One payload per recipient device.
+      */
+      encryptedPayloads: {
+        type: [encryptedPayloadSchema],
+        default: [],
+      },
 
-    isEncrypted: {
-      type: Boolean,
-      default: true,
-    },
+      signature: String,
+
+      isEncrypted: {
+        type: Boolean,
+        default: true,
+      },
 
     //msg typ
 
@@ -123,16 +184,16 @@ const messageSchema = new Schema(
 
     reactions: [reactionSchema],
 
-    //status tracking
+    //delivery/read receipts
 
-    status: {
-      type: String,
-      enum: ["sent", "delivered", "read"],
-      default: "sent",
+// Delivery / Read receipts (per recipient)
+
+    deliveryReceipts: {
+      type: [receiptSchema],
+      default: [],
     },
 
-    deliveredAt: Date,
-    readAt: Date,
+
 
     //disappearing messages
 
@@ -167,6 +228,7 @@ const messageSchema = new Schema(
 
     editHistory: [editHistorySchema],
     editedAt: Date,
+
     isEdited: {
       type: Boolean,
       default: false,
@@ -183,21 +245,41 @@ const messageSchema = new Schema(
 
 
 
+messageSchema.index({
+  conversation: 1,
+  createdAt: -1
+});
 
-messageSchema.index({ conversation: 1, createdAt: -1 });
+messageSchema.index({
+  sender: 1,
+  createdAt: -1
+});
 
-messageSchema.index({ sender: 1, createdAt: -1 });
+messageSchema.index({
+    receiver: 1,
+    createdAt: -1
+});
+messageSchema.index({
+  "encryptedPayloads.recipientDeviceId": 1
+});
 
+messageSchema.index({
+  "deliveryReceipts.user": 1
+});
 
-messageSchema.index({ receiver: 1, status: 1 });
+messageSchema.index({
+  isDeletedForEveryone: 1
+});
 
+messageSchema.index(
+  { expiresAt: 1 },
+  { expireAfterSeconds: 0 }
+);
 
-messageSchema.index({ isDeletedForEveryone: 1 });
-
-
-messageSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-
-messageSchema.index({ _id: 1, "reactions.user": 1 });
+messageSchema.index({
+  _id: 1,
+  "reactions.user": 1
+});
 
 
 messageSchema.set("toJSON", {
