@@ -1,193 +1,180 @@
-import { io, Socket } from "socket.io-client"
-import type { ManagerOptions, SocketOptions } from "socket.io-client"
+import { io, Socket } from "socket.io-client";
+import type { ManagerOptions, SocketOptions } from "socket.io-client";
 
-let socket: Socket | null = null
-let isConnecting = false
-let operationQueue: Array<() => void> = []
+let socket: Socket | null = null;
+let isConnecting = false;
+let operationQueue: Array<() => void> = [];
 
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL || "http://localhost:5013"
+  import.meta.env.VITE_SOCKET_URL || "http://localhost:5013";
 
-const SOCKET_CONFIG: Partial<ManagerOptions & SocketOptions> = {
-  withCredentials: true,
-
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 30000,
-
-  timeout: 30000,
-
-  transports: ["websocket", "polling"],
-  randomizationFactor: 0.5,
-}
+const SOCKET_CONFIG = Object.freeze({
+    withCredentials: true,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 30000,
+    timeout: 30000,
+    transports: ["websocket", "polling"],
+    randomizationFactor: 0.5,
+} satisfies Partial<ManagerOptions & SocketOptions>);
 
 /* ================= EVENTS ================= */
 
 export const MESSAGE_EVENTS = {
-  //no use 
-  // SEND: "message:send",
   NEW: "message:new",
   DELIVERED: "message:delivered",
   READ: "message:read",
-} as const
+} as const;
 
 /* ================= SOCKET INSTANCE ================= */
 
-export const getSocket = () => socket
+export const getSocket = () => socket;
 
-export const isSocketConnected = () => socket?.connected ?? false
+export const isSocketConnected = () => socket?.connected ?? false;
 
 export const connectSocket = (token: string): Socket | null => {
+    if (!token) return null;
 
-  if (!token) return null
+    if (socket) {
+        const currentToken = socket.auth?.token as string | undefined;
 
-  if (socket?.connected) return socket
+        if (currentToken !== token) {
+            socket.auth = { token };
 
-  if (isConnecting) return null
+            if (socket.connected) {
+                socket.disconnect().connect();
+            } else {
+                socket.connect();
+            }
+        }
 
-  if (socket && !socket.connected) {
-    socket.auth = { token }
-    socket.connect()
-    return socket
-  }
-
-  isConnecting = true
-
-  socket = io(SOCKET_URL, {
-    ...SOCKET_CONFIG,
-    auth: { token },
-  })
-
-  socket.on("connect", () => {
-    console.log("[Socket] Connected:", socket?.id)
-    isConnecting = false
-    flushOperationQueue()
-  })
-
-  socket.on("disconnect", (reason) => {
-    console.warn("[Socket] Disconnected:", reason)
-  })
-
-  socket.on("connect_error", async (err) => {
-    console.error("[Socket] Error:", err.message)
-
-    // Auto-refresh token if connection fails due to expired or invalid JWT
-    if (err.message.includes("expired") || err.message.includes("JWT") || err.message.includes("auth")) {
-      console.log("[Socket] Token expired or invalid, attempting automatic refresh...")
-      try {
-        const axios = (await import("axios")).default
-        const apiPrefix = import.meta.env.VITE_API_URL || "http://localhost:5013/api/v1"
-
-        const res = await axios.post(
-          `${apiPrefix}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        )
-
-        const newToken = res.data.accessToken
-
-        // Update Zustand store
-        const { useAuthStore } = await import("../store/auth.store")
-        useAuthStore.getState().updateToken(newToken)
-
-        // Reconnect socket with the new token
-        updateSocketAuth(newToken)
-      } catch (refreshErr) {
-        console.error("[Socket] Automatic refresh token failed:", refreshErr)
-      }
+        return socket;
     }
-  })
 
-  return socket
-}
+    if (isConnecting) return null;
 
-/* ================= TOKEN REFRESH ================= */
+    isConnecting = true;
+
+    socket = io(SOCKET_URL, {
+        ...SOCKET_CONFIG,
+        auth: { token },
+    });
+
+    socket.on("connect", () => {
+        console.log("[Socket] Connected:", socket?.id);
+
+        isConnecting = false;
+        flushOperationQueue();
+    });
+
+    socket.on("disconnect", (reason) => {
+        if (reason !== "io client disconnect") {
+            console.warn("[Socket] Disconnected:", reason);
+        }
+
+        isConnecting = false;
+    });
+
+    socket.on("connect_error", (err) => {
+        console.error("[Socket] Connection error:", err.message);
+
+        isConnecting = false;
+    });
+
+    return socket;
+};
+
+/* ================= TOKEN UPDATE ================= */
 
 export const updateSocketAuth = (token: string) => {
+  if (!socket) {
+    return connectSocket(token);
+  }
 
-  if (!socket) return connectSocket(token)
+  socket.auth = { token };
 
-  socket.auth = { token }
+  if (!socket.connected) {
+    socket.connect();
+    return socket;
+  }
 
-  socket.disconnect()
-  socket.connect()
+  socket.disconnect().connect();
 
-  return socket
-}
+  return socket;
+};
 
 /* ================= DISCONNECT ================= */
 
 export const disconnectSocket = () => {
+  if (!socket) return;
 
-  if (!socket) return
+  socket.removeAllListeners();
+  socket.disconnect();
 
-  socket.removeAllListeners()
-  socket.disconnect()
-
-  socket = null
-  isConnecting = false
-  operationQueue = []
-}
+  socket = null;
+  isConnecting = false;
+  operationQueue = [];
+};
 
 /* ================= OPERATION QUEUE ================= */
 
 const queueOperation = (operation: () => void) => {
-  operationQueue.push(operation)
-}
+  operationQueue.push(operation);
+};
 
 const flushOperationQueue = () => {
+  if (operationQueue.length === 0) return;
 
-  if (operationQueue.length === 0) return
-
-  const queue = operationQueue
-  operationQueue = []
+  const queue = operationQueue;
+  operationQueue = [];
 
   queue.forEach((op) => {
     try {
-      op()
+      op();
     } catch (err) {
-      console.error("Socket queued operation failed:", err)
+      console.error("[Socket] Queued operation failed:", err);
     }
-  })
-}
+  });
+};
 
-
+/* ================= ROOMS ================= */
 
 export const joinConversationRoom = (conversationId: string) => {
+  const op = () => socket?.emit("join:room", { conversationId });
 
-  const op = () => socket?.emit("join:room", { conversationId })
-
-  socket?.connected ? op() : queueOperation(op)
-}
+  socket?.connected ? op() : queueOperation(op);
+};
 
 export const leaveConversationRoom = (conversationId: string) => {
+  socket?.emit("leave:room", { conversationId });
+};
 
-  socket?.emit("leave:room", { conversationId })
-}
+/* ================= TYPING ================= */
 
 export const emitTypingStart = (conversationId: string) => {
+  const op = () => socket?.emit("typing:start", { conversationId });
 
-  const op = () => socket?.emit("typing:start", { conversationId })
-
-  socket?.connected ? op() : queueOperation(op)
-}
+  socket?.connected ? op() : queueOperation(op);
+};
 
 export const emitTypingStop = (conversationId: string) => {
+  if (!socket?.connected) return;
 
-  if (!socket?.connected) return
+  socket.emit("typing:stop", { conversationId });
+};
 
-  socket.emit("typing:stop", { conversationId })
-}
+/* ================= LIVEBLOCK ================= */
 
 export const emitLiveBlockAction = (payload: {
-  blockId: string
-  clientVersion: number
+  blockId: string;
+  clientVersion: number;
   action: {
-    type: string
-    payload?: any
-  }
+    type: string;
+    payload?: any;
+  };
 }) => {
-  const op = () => socket?.emit("liveblock:action", payload)
-  socket?.connected ? op() : queueOperation(op)
-}
+  const op = () => socket?.emit("liveblock:action", payload);
+
+  socket?.connected ? op() : queueOperation(op);
+};

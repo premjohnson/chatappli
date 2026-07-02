@@ -2,12 +2,21 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { User } from "../features/auth/types/auth.types"
 
+type AuthStatus =
+  | "unknown"
+  | "checking"
+  | "authenticated"
+  | "anonymous";
+
 interface AuthState {
   user: User | null
   accessToken: string | null
+  authStatus: AuthStatus
+  hydrated: boolean
   deviceId: string | null
   identityPublicKey: string | null
   identityPrivateKey: string | null
+  
 
   // Actions
   setAuth: (user: User, token: string) => void
@@ -22,7 +31,11 @@ interface AuthState {
    * 2. updateToken only updates the token (used during refresh)
    * 3. Keep concerns separated and transaction atomic
    */
-  updateToken: (token: string) => void
+
+
+  setAuthStatus: (status: AuthStatus) => void
+  setHydrated: (hydrated: boolean) => void
+
 
   logout: () => void
 }
@@ -32,6 +45,9 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       accessToken: null,
+       authStatus: "unknown",
+      hydrated: false,
+
       deviceId: null,
       identityPublicKey: null,
       identityPrivateKey: null,
@@ -41,9 +57,11 @@ export const useAuthStore = create<AuthState>()(
        */
       setAuth: (user, token) => {
         console.log("[AuthStore] Setting auth:", user.id)
+
         set({
           user,
           accessToken: token,
+          authStatus: "authenticated",
         })
       },
 
@@ -65,12 +83,17 @@ export const useAuthStore = create<AuthState>()(
        * This is called by axios interceptor when token is refreshed.
        * User remains same, only token updates.
        */
-      updateToken: (token: string) => {
-        console.log("[AuthStore] Updating access token")
-        set({
-          accessToken: token,
-        })
-      },
+          setAuthStatus: (status) => {
+            set({
+              authStatus: status,
+            })
+          },
+
+          setHydrated: (hydrated) => {
+            set({
+              hydrated,
+            })
+          },
 
       /**
        * Logout: clear all auth state
@@ -81,14 +104,19 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           accessToken: null,
+          authStatus: "anonymous",
           deviceId: null,
           identityPublicKey: null,
           identityPrivateKey: null,
         })
       },
     }),
-    {
-      name: "auth-storage",
+  {
+    name: "auth-storage",
+
+      onRehydrateStorage: () => (state) => {
+        state?.setHydrated(true)
+      }
     }
   )
 )
