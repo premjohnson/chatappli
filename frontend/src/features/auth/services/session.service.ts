@@ -69,9 +69,15 @@ async bootstrapSession(): Promise<void> {
 
     const token = store.accessToken;
 
-    if (!token) {
-      store.setAuthStatus("anonymous");
-      return;
+  if (!token) {
+    try {
+        await this.refreshSession();
+            store.setAuthStatus("authenticated");
+        } catch {
+            store.logout();
+            store.setAuthStatus("anonymous");
+        }
+        return;
     }
 
     if (!isTokenExpired(token)) {

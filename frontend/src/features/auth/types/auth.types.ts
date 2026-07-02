@@ -37,6 +37,9 @@ export interface RegisterResponse {
 }
 
 export interface RefreshResponse {
-  status: "success"
-  accessToken: string
+  status: "success";
+  data: {
+    user: User;
+    accessToken: string;
+  };
 }

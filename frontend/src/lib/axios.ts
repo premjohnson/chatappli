@@ -27,7 +27,7 @@ api.interceptors.request.use(
     const token = useAuthStore.getState().accessToken;
 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.set("Authorization", `Bearer ${token}`);
     }
 
     return config;
@@ -64,11 +64,9 @@ const processQueue = (
 /* ================= RESPONSE ================= */
 
 api.interceptors.response.use(
-
   (response) => response,
 
   async (error: AxiosError) => {
-
     const originalRequest =
       error.config as RetryAxiosRequestConfig | undefined;
 
@@ -84,71 +82,58 @@ api.interceptors.response.use(
     }
 
     if (isRefreshing) {
-
       return new Promise<string | null>((resolve, reject) => {
-
         failedQueue.push({
           resolve,
           reject,
         });
-
-      }).then((token: string | null) => {
-
-        originalRequest.headers = {
-          ...originalRequest.headers,
-          Authorization: `Bearer ${token}`,
-        };
+      }).then((token) => {
+        if (token && originalRequest.headers) {
+          originalRequest.headers.set(
+            "Authorization",
+            `Bearer ${token}`
+          );
+        }
 
         return api(originalRequest);
-
       });
-
     }
 
     originalRequest._retry = true;
     isRefreshing = true;
 
     try {
-
-      const newToken =
-        await sessionService.refreshSession();
+      const newToken = await sessionService.refreshSession();
 
       api.defaults.headers.common.Authorization =
         `Bearer ${newToken}`;
 
-      originalRequest.headers = {
-        ...originalRequest.headers,
-        Authorization: `Bearer ${newToken}`,
-      };
+      if (originalRequest.headers) {
+        originalRequest.headers.set(
+          "Authorization",
+          `Bearer ${newToken}`
+        );
+      }
 
       processQueue(null, newToken);
 
       return api(originalRequest);
-
     } catch (err) {
-
       processQueue(err, null);
 
-      const { logout } = useAuthStore.getState();
-
-      logout();
-
       disconnectSocket();
+
+      useAuthStore.getState().logout();
 
       if (window.location.pathname !== "/login") {
         window.location.replace("/login");
       }
 
       return Promise.reject(err);
-
     } finally {
-
       isRefreshing = false;
-
     }
-
   }
-
 );
 
 export default api;

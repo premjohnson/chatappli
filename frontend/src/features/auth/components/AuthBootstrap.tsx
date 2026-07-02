@@ -23,7 +23,11 @@ export default function AuthBootstrap({ children }: Props) {
     bootstrap();
   }, [hydrated]);
 
-  if (!hydrated || authStatus === "checking") {
+    if (
+        !hydrated ||
+        authStatus === "unknown" ||
+        authStatus === "checking"
+    ) {
     return (
       <div className="flex h-screen items-center justify-center">
         Loading...

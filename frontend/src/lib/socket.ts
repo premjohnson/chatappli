@@ -37,7 +37,10 @@ export const connectSocket = (token: string): Socket | null => {
     if (!token) return null;
 
     if (socket) {
-        const currentToken = socket.auth?.token as string | undefined;
+        const currentToken =
+          typeof socket.auth === "object"
+              ? socket.auth.token
+              : undefined;
 
         if (currentToken !== token) {
             socket.auth = { token };
