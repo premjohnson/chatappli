@@ -75,6 +75,14 @@ export function ChatWindow() {
             });
 
     }, [activeConversationId, hasUnreadIncoming]);
+    //this for helping to debug the issue of multiple calls to markAsReadApi when the component re-renders
+    useEffect(() => {
+    console.log({
+        hasUnreadIncoming,
+        activeConversationId,
+        messages: messages.length
+    });
+}, [hasUnreadIncoming, activeConversationId, messages.length]);
 
   return (
     <div className="flex flex-col h-full bg-white/40 backdrop-blur-2xl rounded-[2.5rem] relative overflow-hidden border border-white/40 shadow-premium">
