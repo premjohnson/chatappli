@@ -25,16 +25,65 @@ const MessageBubble = memo(({
 }: Props) => {
   const currentUser = useAuthStore((s) => s.user)
   const currentDeviceId = useAuthStore((s) => s.deviceId)
+console.log("msg.sender", msg.sender);
+console.log("typeof sender", typeof msg.sender);
 
   const isSent = msg.sender === currentUser?.id
 
+  console.log(
+    "Render Message",
+    msg._id,
+    (msg as Message & { content?: string }).content,
+    (msg as Message & { decryptedContent?: string }).decryptedContent,
+    msg.encryptedContent,
+    {
+      clientMessageId: msg.clientMessageId,
+      senderDeviceId: msg.senderDeviceId,
+      currentDeviceId,
+      isSent,
+      encryptedPayloads: msg.encryptedPayloads?.map((payload) => ({
+        recipientDeviceId: payload.recipientDeviceId,
+        encryptedContent: Boolean(payload.encryptedContent),
+        nonce: Boolean(payload.nonce)
+      })),
+      receiverDevicesLoaded: Boolean(receiverDevices),
+      receiverDeviceIds: receiverDevices?.map((device) => device.deviceId),
+      senderDevicesLoaded: Boolean(senderDevices),
+      senderDeviceIds: senderDevices?.map((device) => device.deviceId),
+      identityPrivateKeyLoaded: Boolean(identityPrivateKey),
+      receiverPublicKeyLoaded: Boolean(receiverPublicKey)
+    }
+  )
+
   const decryptedText = useMemo(() => {
+    console.group("MESSAGE DECRYPT")
+    const endDecryptLog = (decryptResult: string, reason: string) => {
+      console.log("messageId", msg._id)
+      console.log("clientMessageId", msg.clientMessageId)
+      console.log("sender", msg.sender)
+      console.log("currentUser", currentUser?.id)
+      console.log("isSent", isSent)
+      console.log("messageSenderDeviceId", msg.senderDeviceId)
+      console.log("currentDeviceId", currentDeviceId)
+      console.log("encryptedContent", Boolean(msg.encryptedContent))
+      console.log("nonce", msg.nonce)
+      console.log("encryptedPayloads", msg.encryptedPayloads)
+      console.log("receiverPublicKey", receiverPublicKey)
+      console.log("receiverDevices", receiverDevices)
+      console.log("senderDevices", senderDevices)
+      console.log("privateKeyLoaded", Boolean(identityPrivateKey))
+      console.log("reason", reason)
+      console.log("decryptResult", decryptResult)
+      console.groupEnd()
+      return decryptResult
+    }
+
     if (msg.type === "system") {
-      return msg.encryptedContent ?? ""
+      return endDecryptLog(msg.encryptedContent ?? "", "system-message")
     }
 
     if (!identityPrivateKey) {
-      return "[Decryption keys missing]"
+      return endDecryptLog("[Decryption keys missing]", "identity-private-key-missing")
     }
 
     const encryptedPayload = currentDeviceId
@@ -49,17 +98,17 @@ const MessageBubble = memo(({
     // New multi-device message
     if (msg.encryptedPayloads?.length) {
       if (!currentDeviceId) {
-        return "[Device id missing]"
+        return endDecryptLog("[Device id missing]", "current-device-id-missing")
       }
       if (!encryptedPayload) {
-        return "[Unable to decrypt message]"
+        return endDecryptLog("[Unable to decrypt message]", "payload-for-current-device-missing")
       }
       encryptedContent = encryptedPayload.encryptedContent
       nonce = encryptedPayload.nonce
     }
     // Legacy message
     else if (!encryptedContent || !nonce) {
-      return ""
+      return endDecryptLog("", "legacy-payload-missing")
     }
 
     // Determine the sender public key to use for decryption
@@ -70,26 +119,30 @@ const MessageBubble = memo(({
           : receiverDevices?.find(d => d.deviceId === msg.senderDeviceId)
 
         if (!senderDevice) {
-          return "[Unable to decrypt message]"
+          return endDecryptLog("[Unable to decrypt message]", "sender-device-not-loaded")
         }
 
         senderPublicKeyToUse = senderDevice.publicKey
       }
 
      if (!senderPublicKeyToUse) {
-        return "[Unable to decrypt message]"
+        return endDecryptLog("[Unable to decrypt message]", "sender-public-key-missing")
       }
 
-      return decryptMessage(
+      const decrypted = decryptMessage(
         encryptedContent,
         nonce,
         senderPublicKeyToUse,
         identityPrivateKey
       )
+      return endDecryptLog(decrypted, "decrypt-called")
   }, [
       msg.encryptedContent,
       msg.nonce,
       msg.encryptedPayloads,
+      msg._id,
+      msg.clientMessageId,
+      msg.sender,
       receiverPublicKey,
       receiverDevices,
       senderDevices,
@@ -97,7 +150,8 @@ const MessageBubble = memo(({
       msg.type,
       isSent,
       msg.senderDeviceId,
-      currentDeviceId
+      currentDeviceId,
+      currentUser?.id
     ])
   const parsedMessage = useMemo(() => {
     if (!decryptedText) return { text: "", isLiveBlock: false, blockId: "" }

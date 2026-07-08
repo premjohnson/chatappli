@@ -26,6 +26,7 @@ export default function ConversationItem({
   const presenceMap = useChatStore((s) => s.presenceMap)
   const currentUser = useAuthStore((s) => s.user)
   const identityPrivateKey = useAuthStore((s) => s.identityPrivateKey)
+  const currentDeviceId = useAuthStore((s) => s.deviceId)
 
   const receiver = conversation.type === "private"
     ? conversation.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
@@ -44,6 +45,12 @@ export default function ConversationItem({
     enabled: Boolean(receiverId)
   })
 
+  const { data: senderDevices } = useQuery({
+    queryKey: ["devices", "user", currentUser?.id],
+    queryFn: () => currentUser?.id ? getUserDevices(currentUser.id) : Promise.resolve([]),
+    enabled: Boolean(currentUser?.id)
+  })
+
   const receiverPublicKey = receiverDevices?.[0]?.publicKey || ""
 
   const displayText = useMemo(() => {
@@ -53,10 +60,36 @@ export default function ConversationItem({
 
     try {
       const latestMsgAny = latestMsg as any
+      const encryptedPayload = currentDeviceId
+        ? latestMsgAny.encryptedPayloads?.find(
+            (payload: any) => payload.recipientDeviceId === currentDeviceId
+          )
+        : undefined
+      let encryptedContent = latestMsgAny.encryptedContent || ""
+      let nonce = latestMsgAny.nonce || ""
+
+      if (latestMsgAny.encryptedPayloads?.length) {
+        if (!encryptedPayload) return "Encrypted Message"
+        encryptedContent = encryptedPayload.encryptedContent
+        nonce = encryptedPayload.nonce
+      }
+
+      const isSent = latestMsgAny.sender === currentUser?.id
+      let senderPublicKey = receiverPublicKey
+
+      if (latestMsgAny.senderDeviceId) {
+        const senderDevice = isSent
+          ? senderDevices?.find((device) => device.deviceId === latestMsgAny.senderDeviceId)
+          : receiverDevices?.find((device) => device.deviceId === latestMsgAny.senderDeviceId)
+
+        if (!senderDevice) return "Encrypted Message"
+        senderPublicKey = senderDevice.publicKey
+      }
+
       const raw = decryptMessage(
-        (latestMsgAny.encryptedContent || "") as string,
-        (latestMsgAny.nonce || "") as string,
-        receiverPublicKey,
+        encryptedContent,
+        nonce,
+        senderPublicKey,
         identityPrivateKey || ""
       )
       if (!raw) return "Encrypted Message"
@@ -68,7 +101,17 @@ export default function ConversationItem({
       } catch { text = raw }
     } catch { text = "Encrypted Message" }
     return text
-  }, [latestMessages?.[conversation._id]?._id, (conversation.lastMessage as any)?._id, currentUser?.id, identityPrivateKey, receiverPublicKey, conversation._id])
+  }, [
+    latestMessages?.[conversation._id],
+    (conversation.lastMessage as any),
+    currentUser?.id,
+    currentDeviceId,
+    identityPrivateKey,
+    receiverPublicKey,
+    receiverDevices,
+    senderDevices,
+    conversation._id
+  ])
 
   const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Private Participant") as string
 

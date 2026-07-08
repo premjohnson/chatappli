@@ -58,12 +58,21 @@ export const decryptMessage = (
   senderPublicKey: string,
   receiverSecretKey: string
 ) => {
+  console.group("CRYPTO DECRYPT")
+  console.log("encryptedContent", Boolean(encryptedContent))
+  console.log("nonce", nonce)
+  console.log("senderPublicKey", senderPublicKey)
+  console.log("privateKeyLoaded", Boolean(receiverSecretKey))
+
   if (
     !isValidBase64(encryptedContent) ||
     !isValidBase64(nonce) ||
     !isValidBase64(senderPublicKey) ||
     !isValidBase64(receiverSecretKey)
   ) {
+    console.log("decryptResult", "[Encrypted message]")
+    console.log("reason", "invalid-base64-or-missing-input")
+    console.groupEnd()
     return "[Encrypted message]"
   }
 
@@ -82,13 +91,25 @@ export const decryptMessage = (
       receiverSecretKeyUint8
     )
 
-    if (!decrypted) return "[Encrypted message]"
+    if (!decrypted) {
+      console.log("decryptResult", "[Encrypted message]")
+      console.log("reason", "nacl-box-open-failed")
+      console.groupEnd()
+      return "[Encrypted message]"
+    }
 
-    return util.encodeUTF8(decrypted)
+    const result = util.encodeUTF8(decrypted)
+    console.log("decryptResult", result)
+    console.log("reason", "success")
+    console.groupEnd()
+    return result
 
   } catch (err) {
 
     console.warn("Decryption failed", err)
+    console.log("decryptResult", "[Encrypted message]")
+    console.log("reason", "exception")
+    console.groupEnd()
     return "[Encrypted message]"
   }
 }

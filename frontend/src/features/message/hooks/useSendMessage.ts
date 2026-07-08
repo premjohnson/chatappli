@@ -31,6 +31,23 @@ export const useSendMessage = () => {
 
       const previousMessages = queryClient.getQueryData(["messages", newMsgPayload.conversationId])
 
+      console.group("MESSAGE STATE UPDATE")
+      console.log("source", "useSendMessage.onMutate")
+      console.log("conversationId", newMsgPayload.conversationId)
+      console.log("clientMessageId", newMsgPayload.clientMessageId)
+      console.log("payloadSenderDeviceId", newMsgPayload.senderDeviceId)
+      console.log("payloadEncryptedContent", Boolean(newMsgPayload.encryptedContent))
+      console.log("payloadNonce", Boolean(newMsgPayload.nonce))
+      console.log("payloadEncryptedPayloads", newMsgPayload.encryptedPayloads)
+      console.log("previousPages", (previousMessages as { pages?: Message[][] } | undefined)?.pages?.map(
+        (page) => page.map((msg) => ({
+          id: msg._id,
+          clientMessageId: msg.clientMessageId,
+          senderDeviceId: msg.senderDeviceId
+        }))
+      ))
+      console.groupEnd()
+
       queryClient.setQueryData(
         ["messages", newMsgPayload.conversationId],
         (old: { pages: Message[][], pageParams: unknown[] } | undefined) => {
@@ -41,6 +58,7 @@ export const useSendMessage = () => {
             _id: `temp-${Date.now()}`,
             conversation: newMsgPayload.conversationId,
             sender: user?.id || "",
+            senderDeviceId: newMsgPayload.senderDeviceId, 
             encryptedContent:
               newMsgPayload.encryptedContent ?? "",
 
@@ -55,6 +73,15 @@ export const useSendMessage = () => {
             updatedAt: new Date().toISOString(),
             clientMessageId: newMsgPayload.clientMessageId
           }
+
+          console.group("MESSAGE STATE UPDATE")
+          console.log("source", "useSendMessage.onMutate.optimisticMessage")
+          console.log("messageId", optimisticMsg._id)
+          console.log("clientMessageId", optimisticMsg.clientMessageId)
+          console.log("payloadSenderDeviceId", newMsgPayload.senderDeviceId)
+          console.log("optimisticSenderDeviceId", optimisticMsg.senderDeviceId)
+          console.log("encryptedPayloads", optimisticMsg.encryptedPayloads)
+          console.groupEnd()
 
           // In infinite queries, pages[0] contains the NEWEST messages on that page.
           // Since the API returns the messages in ascending order (oldest first),
@@ -74,10 +101,34 @@ export const useSendMessage = () => {
 
     // ✅ On success, replace optimistic message with real message
     onSuccess: (newMessage: Message, variables: SendMessagePayload) => {
+      console.group("MESSAGE STATE UPDATE")
+      console.log("source", "useSendMessage.onSuccess")
+      console.log("conversationId", variables.conversationId)
+      console.log("clientMessageId", variables.clientMessageId)
+      console.log("payloadSenderDeviceId", variables.senderDeviceId)
+      console.log("newMessageId", newMessage._id)
+      console.log("newMessageSenderDeviceId", newMessage.senderDeviceId)
+      console.log("newMessageEncryptedPayloads", newMessage.encryptedPayloads)
+      console.groupEnd()
+
       queryClient.setQueryData(
         ["messages", variables.conversationId],
         (old: { pages: Message[][], pageParams: unknown[] } | undefined) => {
           if (!old || !old.pages) return old
+
+          console.group("MESSAGE STATE UPDATE")
+          console.log("source", "useSendMessage.onSuccess.replaceOptimistic")
+          console.log("oldPages", old.pages.map((page) => page.map((msg) => ({
+            id: msg._id,
+            clientMessageId: msg.clientMessageId,
+            senderDeviceId: msg.senderDeviceId
+          }))))
+          console.log("replacement", {
+            id: newMessage._id,
+            clientMessageId: newMessage.clientMessageId,
+            senderDeviceId: newMessage.senderDeviceId
+          })
+          console.groupEnd()
 
           return {
             ...old,

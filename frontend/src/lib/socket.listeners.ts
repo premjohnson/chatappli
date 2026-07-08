@@ -24,6 +24,16 @@ export const registerSocketListeners = () => {
   /* ================= MESSAGE LISTENERS ================= */
 
   socket.on(MESSAGE_EVENTS.NEW, (message: Message) => {
+    console.group("MESSAGE STATE UPDATE")
+    console.log("source", "socket.message:new")
+    console.log("messageId", message._id)
+    console.log("conversationId", message.conversation)
+    console.log("clientMessageId", message.clientMessageId)
+    console.log("senderDeviceId", message.senderDeviceId)
+    console.log("encryptedContent", Boolean(message.encryptedContent))
+    console.log("nonce", Boolean(message.nonce))
+    console.log("encryptedPayloads", message.encryptedPayloads)
+    console.groupEnd()
 
     queryClient.setQueryData(
       ["messages", message.conversation],
@@ -50,6 +60,12 @@ export const registerSocketListeners = () => {
         if (exists) return old
 
         if (replaced) {
+          console.group("MESSAGE STATE UPDATE")
+          console.log("source", "socket.message:new.replaceOptimistic")
+          console.log("messageId", message._id)
+          console.log("clientMessageId", message.clientMessageId)
+          console.log("senderDeviceId", message.senderDeviceId)
+          console.groupEnd()
           return { ...old, pages }
         }
 
@@ -60,6 +76,13 @@ export const registerSocketListeners = () => {
         } else {
           newPages[0] = [...newPages[0], message]
         }
+
+        console.group("MESSAGE STATE UPDATE")
+        console.log("source", "socket.message:new.append")
+        console.log("messageId", message._id)
+        console.log("clientMessageId", message.clientMessageId)
+        console.log("senderDeviceId", message.senderDeviceId)
+        console.groupEnd()
 
         return { ...old, pages: newPages }
       }
@@ -83,6 +106,15 @@ export const registerSocketListeners = () => {
   socket.on(MESSAGE_EVENTS.DELIVERED, (payload: { message: Message }) => {
     const { message } = payload
     if (!message) return
+
+    console.group("MESSAGE STATE UPDATE")
+    console.log("source", "socket.message:delivered")
+    console.log("messageId", message._id)
+    console.log("conversationId", message.conversation)
+    console.log("clientMessageId", message.clientMessageId)
+    console.log("senderDeviceId", message.senderDeviceId)
+    console.log("encryptedPayloads", message.encryptedPayloads)
+    console.groupEnd()
 
     queryClient.setQueryData(
       ["messages", message.conversation],
@@ -115,6 +147,15 @@ export const registerSocketListeners = () => {
     const { message } = payload
     if (!message) return
 
+    console.group("MESSAGE STATE UPDATE")
+    console.log("source", "socket.message:read")
+    console.log("messageId", message._id)
+    console.log("conversationId", message.conversation)
+    console.log("clientMessageId", message.clientMessageId)
+    console.log("senderDeviceId", message.senderDeviceId)
+    console.log("encryptedPayloads", message.encryptedPayloads)
+    console.groupEnd()
+
     queryClient.setQueryData(
       ["messages", message.conversation],
       (old: any) => {
@@ -143,6 +184,15 @@ export const registerSocketListeners = () => {
   })
 
   socket.on("message:update", (updatedMessage: Message) => {
+    console.group("MESSAGE STATE UPDATE")
+    console.log("source", "socket.message:update")
+    console.log("messageId", updatedMessage._id)
+    console.log("conversationId", updatedMessage.conversation)
+    console.log("clientMessageId", updatedMessage.clientMessageId)
+    console.log("senderDeviceId", updatedMessage.senderDeviceId)
+    console.log("encryptedPayloads", updatedMessage.encryptedPayloads)
+    console.groupEnd()
+
     queryClient.setQueryData(
       ["messages", updatedMessage.conversation],
       (old: any) => {

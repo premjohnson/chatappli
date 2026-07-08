@@ -72,6 +72,22 @@ export default function MessageList({ conversationId }: Props) {
     )
   }, [senderDevices])
 
+  console.log("Render MessageList", {
+    conversationId,
+    messageIds: messages.map((msg) => ({
+      id: msg._id,
+      clientMessageId: msg.clientMessageId,
+      senderDeviceId: msg.senderDeviceId,
+      encryptedPayloadDeviceIds: msg.encryptedPayloads?.map((payload) => payload.recipientDeviceId)
+    })),
+    currentUserId: currentUser?.id,
+    identityPrivateKeyLoaded: Boolean(identityPrivateKey),
+    receiverUserId,
+    receiverPublicKeyLoaded: Boolean(receiverPublicKey),
+    receiverDeviceIds: receiverDevicesSorted.map((device) => device.deviceId),
+    senderDeviceIds: senderDevicesSorted.map((device) => device.deviceId)
+  })
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])

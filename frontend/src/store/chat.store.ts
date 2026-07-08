@@ -24,6 +24,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     if (current === id) return
 
+    console.log("ZUSTAND STATE UPDATE", {
+      store: "chat",
+      action: "setActiveConversation",
+      previous: current,
+      next: id
+    })
+
     set({
       activeConversationId: id
     })
@@ -35,6 +42,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const current = get().presenceMap[userId]
 
     if (current === isOnline) return
+
+    console.log("ZUSTAND STATE UPDATE", {
+      store: "chat",
+      action: "setPresence",
+      userId,
+      previous: current,
+      next: isOnline
+    })
 
     set((state) => ({
       presenceMap: {
@@ -66,6 +81,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     }
 
+    console.log("ZUSTAND STATE UPDATE", {
+      store: "chat",
+      action: "setTyping",
+      conversationId,
+      userId,
+      isTyping,
+      previous: currentTypers,
+      next: newTypers
+    })
+
     set((state) => ({
       typingMap: {
         ...state.typingMap,
@@ -81,6 +106,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const current = get().latestMessages[message.conversation]
 
     if (current?._id === message._id) return
+
+    console.log("ZUSTAND STATE UPDATE", {
+      store: "chat",
+      action: "setLatestMessage",
+      conversationId: message.conversation,
+      previousMessageId: current?._id,
+      nextMessageId: message._id,
+      clientMessageId: message.clientMessageId,
+      senderDeviceId: message.senderDeviceId
+    })
 
     set((state) => ({
       latestMessages: {
