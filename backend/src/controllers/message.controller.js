@@ -40,34 +40,34 @@ export const sendMessage = asyncHandler(async (req, res) => {
       io.to(message.conversation.toString()).emit("message:new", message);
     }
 
-    const onlineRecipientIds = [];
+    // const onlineRecipientIds = [];
 
-    await Promise.all(
-      recipientIds.map(async (recipientId) => {
-        const sockets =
-          await io.in(`user:${recipientId}`).allSockets();
+    // await Promise.all(
+    //   recipientIds.map(async (recipientId) => {
+    //     const sockets =
+    //       await io.in(`user:${recipientId}`).allSockets();
 
-        if (sockets.size > 0) {
-          onlineRecipientIds.push(recipientId);
-        }
-      })
-    );
+    //     if (sockets.size > 0) {
+    //       onlineRecipientIds.push(recipientId);
+    //     }
+    //   })
+    // );
 
-    const deliveredMessages =
-      await Promise.all(
-        onlineRecipientIds.map(recipientId =>
-          MessageService.markAsDelivered(
-            message._id,
-            recipientId
-          )
-        )
-      );
+    // const deliveredMessages =
+    //   await Promise.all(
+    //     onlineRecipientIds.map(recipientId =>
+    //       MessageService.markAsDelivered(
+    //         message._id,
+    //         recipientId
+    //       )
+    //     )
+    //   );
 
-    deliveredMessages.forEach((deliveredMessage) => {
-      io.to(message.conversation.toString()).emit("message:delivered", {
-        message: deliveredMessage
-      });
-    });
+    // deliveredMessages.forEach((deliveredMessage) => {
+    //   io.to(message.conversation.toString()).emit("message:delivered", {
+    //     message: deliveredMessage
+    //   });
+    // });
   } catch (err) {
     console.warn("Failed to emit message socket events in sendMessage controller:", err.message);
   }

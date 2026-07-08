@@ -619,16 +619,14 @@ class MessageService {
       const now = new Date();
       const messageIds = unreadMessages.map(message => message._id);
 
-      await Promise.all(
-        messageIds.map(messageId =>
-          MessageRepository.markReceiptRead(
-            messageId,
-            userId,
-            now,
-            session
-          )
-        )
-      );
+      for (const messageId of messageIds) {
+        await MessageRepository.markReceiptRead(
+          messageId,
+          userId,
+          now,
+          session
+        );
+      }
 
       participant.unreadCount = 0;
       participant.lastReadAt = now;
