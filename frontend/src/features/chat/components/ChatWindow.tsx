@@ -7,11 +7,12 @@ import UserInfoPanel from "./UserInfoPanel"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import { markAsReadApi } from "../../message/api/markAsRead.api"
 import { joinConversationRoom, leaveConversationRoom } from "../../../lib/socket"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Shield, Lock, Key } from "lucide-react"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
+import { useMessages } from "../../message/hooks/useMessages"
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -19,23 +20,61 @@ export function ChatWindow() {
   const currentUser = useAuthStore((s) => s.user)
   const { data: conversations } = useMyConversations()
   const [showUserInfo, setShowUserInfo] = useState(false)
+  const isMarkingRead = useRef(false)
+  const { data: messageData } = useMessages(activeConversationId ?? "");
 
   const currentConvo = conversations?.find((c: Conversation) => c._id === activeConversationId)
   const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
   const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
-  const markedConvosRef = useRef<Set<string>>(new Set())
 
-  useEffect(() => {
-    if (activeConversationId) {
-      joinConversationRoom(activeConversationId)
-      if (!markedConvosRef.current.has(activeConversationId)) {
-        markedConvosRef.current.add(activeConversationId)
-        markAsReadApi(activeConversationId).catch((e) => console.error(e))
-      }
-      return () => { leaveConversationRoom(activeConversationId) }
-    }
-  }, [activeConversationId])
+  const messages = useMemo(() => {
+      if (!messageData?.pages) return [];
+
+      return [...messageData.pages].reverse().flat();
+    }, [messageData]);
+
+      const hasUnreadIncoming = useMemo(() => {
+        return messages.some((message) => {
+          // Ignore my own messages
+          if (message.sender === currentUser?.id) {
+            return false;
+          }
+
+          const myReceipt = message.deliveryReceipts.find(
+            (receipt) => String(receipt.user) === currentUser?.id
+          );
+
+          return !myReceipt?.readAt;
+        });
+      }, [messages, currentUser?.id]);
+
+
+
+        useEffect(() => {
+            if (activeConversationId) {
+                joinConversationRoom(activeConversationId)
+
+                return () => {
+                    leaveConversationRoom(activeConversationId)
+                }
+            }
+        }, [activeConversationId])
+    //ref changed to true here at effect to prevent multiple calls to markAsReadApi when the component re-renders
+    useEffect(() => {
+        if (!activeConversationId) return;
+        if (!hasUnreadIncoming) return;
+        if (isMarkingRead.current) return;
+
+        isMarkingRead.current = true;
+
+        markAsReadApi(activeConversationId)
+            .catch(console.error)
+            .finally(() => {
+                isMarkingRead.current = false;
+            });
+
+    }, [activeConversationId, hasUnreadIncoming]);
 
   return (
     <div className="flex flex-col h-full bg-white/40 backdrop-blur-2xl rounded-[2.5rem] relative overflow-hidden border border-white/40 shadow-premium">
