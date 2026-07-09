@@ -13,6 +13,7 @@ import { Shield, Lock, Key } from "lucide-react"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { useMessages } from "../../message/hooks/useMessages"
+import { queryClient } from "../../../lib/queryClient"
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -28,11 +29,17 @@ export function ChatWindow() {
   const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
 
-  const messages = useMemo(() => {
-      if (!messageData?.pages) return [];
+      const messages = useMemo(() => {
 
-      return [...messageData.pages].reverse().flat();
-    }, [messageData]);
+        if (!messageData?.pages) {
+          return [];
+        }
+
+        return [...messageData.pages]
+          .reverse()
+          .flatMap((page) => page.data);
+
+      }, [messageData]);
 
       const hasUnreadIncoming = useMemo(() => {
         return messages.some((message) => {
@@ -63,16 +70,59 @@ export function ChatWindow() {
     //ref changed to true here at effect to prevent multiple calls to markAsReadApi when the component re-renders
     useEffect(() => {
         if (!activeConversationId) return;
-        if (!hasUnreadIncoming) return;
-        if (isMarkingRead.current) return;
 
-        isMarkingRead.current = true;
+        const markAsRead = () => {
+            if (!hasUnreadIncoming) return;
+            if (isMarkingRead.current) return;
 
-        markAsReadApi(activeConversationId)
-            .catch(console.error)
-            .finally(() => {
-                isMarkingRead.current = false;
+            // Only mark as read if the document is visible and the window has focus
+            if (document.visibilityState !== "visible" || !document.hasFocus()) {
+                return;
+            }
+
+            // Optimistically set unreadCount to 0 for this conversation in the cache
+            queryClient.setQueryData(["conversations"], (old: any) => {
+                if (!Array.isArray(old)) return old;
+                const currentUserId = useAuthStore.getState().user?.id;
+                return old.map((c: any) => {
+                    if (c._id === activeConversationId) {
+                        return {
+                            ...c,
+                            participants: c.participants.map((p: any) =>
+                                isParticipantCurrentUser(p, currentUserId)
+                                    ? { ...p, unreadCount: 0 }
+                                    : p
+                            )
+                        };
+                    }
+                    return c;
+                });
             });
+
+            isMarkingRead.current = true;
+
+            markAsReadApi(activeConversationId)
+                .catch(console.error)
+                .finally(() => {
+                    isMarkingRead.current = false;
+                });
+        };
+
+        // Try marking as read immediately
+        markAsRead();
+
+        // Listen for activity to mark as read when user focuses or returns to the window
+        const handleActivity = () => {
+            markAsRead();
+        };
+
+        window.addEventListener("focus", handleActivity);
+        document.addEventListener("visibilitychange", handleActivity);
+
+        return () => {
+            window.removeEventListener("focus", handleActivity);
+            document.removeEventListener("visibilitychange", handleActivity);
+        };
 
     }, [activeConversationId, hasUnreadIncoming]);
     //this for helping to debug the issue of multiple calls to markAsReadApi when the component re-renders

@@ -2,6 +2,8 @@ import { getSocket, MESSAGE_EVENTS } from "./socket"
 import { queryClient } from "./queryClient"
 import type { Message } from "../features/message/types/message.types"
 import { useChatStore } from "../store/chat.store"
+import { useAuthStore } from "../store/auth.store"
+import { isParticipantCurrentUser } from "../features/conversation/types/conversation.types"
 
 export const registerSocketListeners = () => {
 
@@ -10,6 +12,7 @@ export const registerSocketListeners = () => {
   if (!socket) return
 
   // Unsubscribe from existing events to prevent multiple registrations
+  socket.off("connect")
   socket.off(MESSAGE_EVENTS.NEW)
   socket.off(MESSAGE_EVENTS.DELIVERED)
   socket.off(MESSAGE_EVENTS.READ)
@@ -20,6 +23,16 @@ export const registerSocketListeners = () => {
   socket.off("typing:start")
   socket.off("typing:stop")
   socket.off("liveblock:update")
+
+  /* ================= CONNECTION LISTENERS ================= */
+
+  socket.on("connect", () => {
+    console.log("[Socket] Reconnected, rejoining active conversation room")
+    const activeConversationId = useChatStore.getState().activeConversationId
+    if (activeConversationId) {
+      socket.emit("join:room", { conversationId: activeConversationId })
+    }
+  })
 
   /* ================= MESSAGE LISTENERS ================= */
 
@@ -44,8 +57,8 @@ export const registerSocketListeners = () => {
         let replaced = false
 
         // Map through pages and check if message already exists or replaces an optimistic one
-        const pages = old.pages.map((page: Message[]) =>
-          page.map((msg) => {
+        const pages = old.pages.map((page: any) => {
+          const newData = page.data.map((msg: Message) => {
             if (msg._id === message._id) {
               exists = true
             }
@@ -55,7 +68,8 @@ export const registerSocketListeners = () => {
             }
             return msg
           })
-        )
+          return { ...page, data: newData }
+        })
 
         if (exists) return old
 
@@ -72,9 +86,18 @@ export const registerSocketListeners = () => {
         // Otherwise append the new message to pages[0] (ascending oldest-first order)
         const newPages = [...pages]
         if (newPages.length === 0) {
-          newPages[0] = [message]
+          newPages[0] = {
+            data: [message],
+            pagination: {
+              nextCursor: null,
+              hasMore: false
+            }
+          }
         } else {
-          newPages[0] = [...newPages[0], message]
+          newPages[0] = {
+            ...newPages[0],
+            data: [...newPages[0].data, message]
+          }
         }
 
         console.group("MESSAGE STATE UPDATE")
@@ -91,11 +114,33 @@ export const registerSocketListeners = () => {
     // Update conversations list query cache
     queryClient.setQueryData(["conversations"], (old: any) => {
       if (!Array.isArray(old)) return old
-      return old.map((c: any) =>
-        c._id === message.conversation
-          ? { ...c, lastMessage: message, updatedAt: new Date().toISOString() }
-          : c
-      )
+      const activeConversationId = useChatStore.getState().activeConversationId
+      const currentUserId = useAuthStore.getState().user?.id
+      return old.map((c: any) => {
+        if (c._id === message.conversation) {
+          const isSender = message.sender === currentUserId
+          const isCurrentActive = message.conversation === activeConversationId
+
+          const updatedParticipants = c.participants.map((p: any) => {
+            if (isParticipantCurrentUser(p, currentUserId)) {
+              const currentUnread = p.unreadCount || 0
+              return {
+                ...p,
+                unreadCount: (isSender || isCurrentActive) ? 0 : currentUnread + 1
+              }
+            }
+            return p
+          })
+
+          return {
+            ...c,
+            lastMessage: message,
+            updatedAt: new Date().toISOString(),
+            participants: updatedParticipants
+          }
+        }
+        return c
+      })
     })
 
     // Update Zustand store's latest messages mapping
@@ -120,13 +165,17 @@ export const registerSocketListeners = () => {
       ["messages", message.conversation],
       (old: any) => {
         if (!old || !old.pages) return old
-        const pages = old.pages.map((page: Message[]) =>
-          page.map((msg) =>
+        const pages = old.pages.map((page: any) => ({
+          ...page,
+          data: page.data.map((msg: Message) =>
             msg._id === message._id
-              ? message
+              ? {
+                  ...msg,
+                  deliveryReceipts: message.deliveryReceipts
+                }
               : msg
           )
-        )
+        }))
         return { ...old, pages }
       }
     )
@@ -135,7 +184,13 @@ export const registerSocketListeners = () => {
       if (!Array.isArray(old)) return old
       return old.map((c: any) =>
         c._id === message.conversation && c.lastMessage?._id === message._id
-          ? { ...c, lastMessage: message }
+          ? {
+              ...c,
+              lastMessage: {
+                ...c.lastMessage,
+                deliveryReceipts: message.deliveryReceipts
+              }
+            }
           : c
       )
     })
@@ -160,13 +215,17 @@ export const registerSocketListeners = () => {
       ["messages", message.conversation],
       (old: any) => {
         if (!old || !old.pages) return old
-        const pages = old.pages.map((page: Message[]) =>
-          page.map((msg) =>
+        const pages = old.pages.map((page: any) => ({
+          ...page,
+          data: page.data.map((msg: Message) =>
             msg._id === message._id
-              ? message
+              ? {
+                  ...msg,
+                  deliveryReceipts: message.deliveryReceipts
+                }
               : msg
           )
-        )
+        }))
         return { ...old, pages }
       }
     )
@@ -175,7 +234,13 @@ export const registerSocketListeners = () => {
       if (!Array.isArray(old)) return old
       return old.map((c: any) =>
         c._id === message.conversation && c.lastMessage?._id === message._id
-          ? { ...c, lastMessage: message }
+          ? {
+              ...c,
+              lastMessage: {
+                ...c.lastMessage,
+                deliveryReceipts: message.deliveryReceipts
+              }
+            }
           : c
       )
     })
@@ -197,11 +262,12 @@ export const registerSocketListeners = () => {
       ["messages", updatedMessage.conversation],
       (old: any) => {
         if (!old || !old.pages) return old
-        const pages = old.pages.map((page: Message[]) =>
-          page.map((msg) =>
+        const pages = old.pages.map((page: any) => ({
+          ...page,
+          data: page.data.map((msg: Message) =>
             msg._id === updatedMessage._id ? updatedMessage : msg
           )
-        )
+        }))
         return { ...old, pages }
       }
     )

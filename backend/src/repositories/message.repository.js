@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Message from "../models/message.model.js";
 
 class MessageRepository {
@@ -61,10 +62,11 @@ class MessageRepository {
   }
 
   static async markReceiptDelivered(messageId, userId, deliveredAt, session = null) {
+    const userObjectId = typeof userId === "string" ? new mongoose.Types.ObjectId(userId) : userId;
     const existingReceiptUpdate = await Message.updateOne(
       {
         _id: messageId,
-        "deliveryReceipts.user": userId
+        "deliveryReceipts.user": userObjectId
       },
       {
         $set: {
@@ -75,7 +77,7 @@ class MessageRepository {
         session,
         arrayFilters: [
           {
-            "receipt.user": userId,
+            "receipt.user": userObjectId,
             "receipt.deliveredAt": null
           }
         ]
@@ -89,12 +91,12 @@ class MessageRepository {
     return Message.updateOne(
       {
         _id: messageId,
-        "deliveryReceipts.user": { $ne: userId }
+        "deliveryReceipts.user": { $ne: userObjectId }
       },
       {
         $push: {
           deliveryReceipts: {
-            user: userId,
+            user: userObjectId,
             deliveredAt
           }
         }
@@ -104,10 +106,11 @@ class MessageRepository {
   }
 
   static async markReceiptRead(messageId, userId, readAt, session = null) {
+    const userObjectId = typeof userId === "string" ? new mongoose.Types.ObjectId(userId) : userId;
     const existingReceiptUpdate = await Message.updateOne(
       {
         _id: messageId,
-        "deliveryReceipts.user": userId
+        "deliveryReceipts.user": userObjectId
       },
       {
         $set: {
@@ -118,7 +121,7 @@ class MessageRepository {
         session,
         arrayFilters: [
           {
-            "receipt.user": userId,
+            "receipt.user": userObjectId,
             "receipt.readAt": null
           }
         ]
@@ -132,12 +135,12 @@ class MessageRepository {
     return Message.updateOne(
       {
         _id: messageId,
-        "deliveryReceipts.user": { $ne: userId }
+        "deliveryReceipts.user": { $ne: userObjectId }
       },
       {
         $push: {
           deliveryReceipts: {
-            user: userId,
+            user: userObjectId,
             deliveredAt: readAt,
             readAt
           }
@@ -149,19 +152,42 @@ class MessageRepository {
 
   /* ================= GET MESSAGES ================= */
 
-  static async findMessages(conversationId, cursor, limit) {
+static async findMessages(conversationId, cursor, limit) {
 
-    const query = { conversation: conversationId };
+  const query = {
+    conversation: conversationId
+  };
 
-    if (cursor) {
-      query._id = { $lt: cursor };
-    }
-
-    return Message.find(query)
-      .sort({ _id: -1 })
-      .limit(limit)
-      .lean();
+  if (cursor) {
+    query._id = {
+      $lt: cursor
+    };
   }
+
+  const messages = await Message.find(query)
+    .sort({ _id: -1 })
+    .limit(limit)
+    .lean();
+
+  const oldestMessage = messages[messages.length - 1];
+
+  let hasMore = false;
+
+  if (oldestMessage) {
+    hasMore = await Message.exists({
+      conversation: conversationId,
+      _id: {
+        $lt: oldestMessage._id
+      }
+    });
+  }
+
+  return {
+    messages,
+    nextCursor: oldestMessage?._id ?? null,
+    hasMore: Boolean(hasMore)
+  };
+}
 
 }
 

@@ -7,6 +7,9 @@ import { getUserDevices } from "../../device/device.service"
 import { useQuery } from "@tanstack/react-query"
 
 import { useMemo, useRef, useEffect } from "react"
+import type { Device } from "../../device/types/device.types"
+
+const EMPTY_DEVICES: Device[] = []
 
 interface Props {
   conversationId: string
@@ -24,12 +27,13 @@ export default function MessageList({ conversationId }: Props) {
 
   const messages = useMemo(() => {
 
-    if (!data?.pages) return []
+    if (!data?.pages) {
+      return []
+    }
 
-    // Since query pages are newest-page-first in the array (e.g. pages[0] has latest page of messages),
-    // and messages inside each page are in ascending order (oldest first), we reverse the pages array itself
-    // first and then flatten it to get all messages in chronological order (oldest-to-newest).
-    return [...data.pages].reverse().flat()
+    return [...data.pages]
+      .reverse()
+      .flatMap(page => page.data)
 
   }, [data])
 
@@ -57,7 +61,7 @@ export default function MessageList({ conversationId }: Props) {
   })
 
   const receiverDevicesSorted = useMemo(() => {
-    if (!receiverDevices) return []
+    if (!receiverDevices) return EMPTY_DEVICES
     return [...receiverDevices].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )
@@ -66,7 +70,7 @@ export default function MessageList({ conversationId }: Props) {
   const receiverPublicKey = receiverDevicesSorted[0]?.publicKey || ""
 
   const senderDevicesSorted = useMemo(() => {
-    if (!senderDevices) return []
+    if (!senderDevices) return EMPTY_DEVICES
     return [...senderDevices].sort(
       (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     )
@@ -99,7 +103,7 @@ export default function MessageList({ conversationId }: Props) {
 
         return (
           <MessageBubble
-            key={msg._id}
+            key={msg.clientMessageId || msg._id}
             msg={msg}
             identityPrivateKey={identityPrivateKey}
             receiverPublicKey={receiverPublicKey}

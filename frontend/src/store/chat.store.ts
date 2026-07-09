@@ -11,8 +11,15 @@ interface ChatState {
   typingMap: Record<string, string[]>
   setTyping: (conversationId: string, userId: string, isTyping: boolean) => void
 
-  latestMessages: Record<string, Message>
-  setLatestMessage: (message: Message) => void
+    latestMessages: Record<string, Message>
+
+    setLatestMessage: (message: Message) => void
+
+    updateLatestMessageReceipts: (
+      conversationId: string,
+      messageId: string,
+      deliveryReceipts: Message["deliveryReceipts"]
+    ) => void
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -101,28 +108,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   latestMessages: {},
 
-  setLatestMessage: (message) => {
+setLatestMessage: (message) => {
 
-    const current = get().latestMessages[message.conversation]
+  console.log("ZUSTAND STATE UPDATE", {
+    store: "chat",
+    action: "setLatestMessage",
+    conversationId: message.conversation,
+    messageId: message._id
+  })
 
-    if (current?._id === message._id) return
+  set((state) => ({
+    latestMessages: {
+      ...state.latestMessages,
+      [message.conversation]: message
+    }
+  }))
+},
+updateLatestMessageReceipts: (
+  conversationId,
+  messageId,
+  deliveryReceipts
+) => {
 
+  set((state) => {
+
+    const current = state.latestMessages[conversationId]
+
+    if (!current) return state
+
+    if (current._id !== messageId) return state
+
+    if (current.deliveryReceipts === deliveryReceipts) {
+        return state
+      }
     console.log("ZUSTAND STATE UPDATE", {
       store: "chat",
-      action: "setLatestMessage",
-      conversationId: message.conversation,
-      previousMessageId: current?._id,
-      nextMessageId: message._id,
-      clientMessageId: message.clientMessageId,
-      senderDeviceId: message.senderDeviceId
+      action: "updateLatestMessageReceipts",
+      conversationId,
+      messageId
     })
 
-    set((state) => ({
+    return {
       latestMessages: {
         ...state.latestMessages,
-        [message.conversation]: message
+        [conversationId]: {
+          ...current,
+          deliveryReceipts
+        }
       }
-    }))
-  }
+    }
+
+  })
+
+},
 
 }))

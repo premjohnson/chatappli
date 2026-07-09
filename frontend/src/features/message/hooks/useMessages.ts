@@ -1,13 +1,13 @@
 import { useInfiniteQuery } from "@tanstack/react-query"
-import { getMessagesApi } from "../api/getMessages.api"
-import type { Message } from "../types/message.types"
 import { useAuthStore } from "../../../store/auth.store"
+import { getMessagesApi, type MessagesResponse } from "../api/getMessages.api"
+
 
 export const useMessages = (conversationId?: string) => {
 
   const accessToken = useAuthStore((s) => s.accessToken)
 
-  return useInfiniteQuery<Message[]>({
+  return useInfiniteQuery<MessagesResponse>({
 
     queryKey: ["messages", conversationId],
 
@@ -20,17 +20,17 @@ export const useMessages = (conversationId?: string) => {
 
     getNextPageParam: (lastPage) => {
 
-      if (!lastPage || lastPage.length < 20) {
+      if (!lastPage?.pagination?.hasMore)
         return undefined
-      }
 
-      // Return the oldest message ID on the page (index 0) since pages are in ascending order
-      return lastPage[0]._id
+      return lastPage.pagination.nextCursor
+
     },
 
     enabled: Boolean(conversationId && accessToken),
 
-    staleTime: 1000 * 60 * 5, // 5 minutes cache
+    staleTime: 1000 * 60 * 5
 
   })
+
 }

@@ -96,18 +96,22 @@ export const getMessages = asyncHandler(async (req, res) => {
     });
   }
 
-  const messages =
-      await MessageService.getMessages(
+  const result =
+    await MessageService.getMessages(
       req.user._id,
       conversationId,
       cursor,
       parseInt(limit) || 20
-    );
+  );
 
   res.json({
     status: "success",
-    results: messages.length,
-    data: messages
+    results: result.messages.length,
+    data: result.messages,
+    pagination: {
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore
+    }
   });
 
 });

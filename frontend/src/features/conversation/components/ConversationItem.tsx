@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getUserDevices } from "../../device/device.service"
 import { motion } from "framer-motion"
 import { cn } from "../../../utils/cn"
+import type { Message } from "../../message/types/message.types"
 
 type Props = {
   conversation: Conversation
@@ -21,9 +22,9 @@ export default function ConversationItem({
   isActive,
   onSelect
 }: Props) {
-  const typingMap = useChatStore((s) => s.typingMap)
-  const latestMessages = useChatStore((s) => s.latestMessages)
-  const presenceMap = useChatStore((s) => s.presenceMap)
+    const latestMessage = useChatStore(
+      (s) => s.latestMessages[conversation._id]
+    )
   const currentUser = useAuthStore((s) => s.user)
   const identityPrivateKey = useAuthStore((s) => s.identityPrivateKey)
   const currentDeviceId = useAuthStore((s) => s.deviceId)
@@ -33,8 +34,13 @@ export default function ConversationItem({
     : null
 
   const receiverId = getParticipantUserId(receiver)
-  const isOnline = receiverId ? presenceMap[receiverId] || false : false
-  const isTyping = typingMap?.[conversation._id]?.includes(receiverId) || false
+  const isTyping = useChatStore(
+    (s) => (s.typingMap[conversation._id] ?? []).includes(receiverId)
+  )
+
+  const isOnline = useChatStore(
+    (s) => receiverId ? !!s.presenceMap[receiverId] : false
+  )
 
   const myParticipantData = conversation.participants.find((p) => isParticipantCurrentUser(p, currentUser?.id))
   const unreadCount = myParticipantData?.unreadCount || 0
@@ -55,11 +61,19 @@ export default function ConversationItem({
 
   const displayText = useMemo(() => {
     let text = "Click to view messages..."
-    const latestMsg = latestMessages?.[conversation._id] || (conversation.lastMessage && typeof conversation.lastMessage === "object" && "_id" in conversation.lastMessage ? conversation.lastMessage : null)
+    const latestMsg =
+        latestMessage ||
+        (
+          conversation.lastMessage &&
+          typeof conversation.lastMessage === "object" &&
+          "_id" in conversation.lastMessage
+            ? conversation.lastMessage
+            : null
+        )
     if (!latestMsg) return text
 
     try {
-      const latestMsgAny = latestMsg as any
+      const latestMsgAny = latestMsg as Message
       const encryptedPayload = currentDeviceId
         ? latestMsgAny.encryptedPayloads?.find(
             (payload: any) => payload.recipientDeviceId === currentDeviceId
@@ -101,17 +115,16 @@ export default function ConversationItem({
       } catch { text = raw }
     } catch { text = "Encrypted Message" }
     return text
-  }, [
-    latestMessages?.[conversation._id],
-    (conversation.lastMessage as any),
-    currentUser?.id,
-    currentDeviceId,
-    identityPrivateKey,
-    receiverPublicKey,
-    receiverDevices,
-    senderDevices,
-    conversation._id
-  ])
+  },[
+  latestMessage,
+  conversation.lastMessage,
+  currentUser?.id,
+  currentDeviceId,
+  identityPrivateKey,
+  receiverPublicKey,
+  receiverDevices,
+  senderDevices
+])
 
   const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Private Participant") as string
 

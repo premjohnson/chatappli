@@ -280,66 +280,90 @@ class MessageService {
 
 //get messages in a conversation with pagination (cursor-based)
 
-    static async getMessages(
-      userId,
-      conversationId,
-      cursor = null,
-      limit = 20
-    ) {
+static async getMessages(
+  userId,
+  conversationId,
+  cursor = null,
+  limit = 20
+) {
 
-      const conversation =
-        await ConversationRepository.findById(
-          conversationId
-        );
+  const conversation =
+    await ConversationRepository.findById(
+      conversationId
+    );
 
-      if (!conversation) {
-        throw new AppError(
-          ERROR_CODES.CONVERSATION_NOT_FOUND,
-          404
-        );
-      }
+  if (!conversation) {
+    throw new AppError(
+      ERROR_CODES.CONVERSATION_NOT_FOUND,
+      404
+    );
+  }
 
-      const isParticipant =
-        conversation.participants.some(
-          p =>
-            p.user._id
-              ? p.user._id.equals(userId)
-              : p.user.equals(userId)
-        );
+  const isParticipant =
+    conversation.participants.some((p) => {
+      const participantId = p.user._id || p.user;
+      return participantId.equals(userId);
+    });
 
-      if (!isParticipant) {
-        throw new AppError(
-          ERROR_CODES.NOT_PARTICIPANT,
-          403
-        );
-      }
+  if (!isParticipant) {
+    throw new AppError(
+      ERROR_CODES.NOT_PARTICIPANT,
+      403
+    );
+  }
 
-      const redis = getRedisClient();
-      const redisKey = `chat:${conversationId}`;
+  const redis = getRedisClient();
+  const redisKey = `chat:${conversationId}`;
 
-      if (!cursor && redis?.isOpen) {
+  // First page from Redis
+  if (!cursor && redis?.isOpen) {
 
-        const cached =
-          await redis.lRange(
-            redisKey,
-            -limit,
-            -1
-          );
+    const cached =
+      await redis.lRange(
+        redisKey,
+        -limit,
+        -1
+      );
 
-        if (cached.length > 0) {
-          return cached.map(m => JSON.parse(m));
-        }
-      }
+    if (cached.length > 0) {
 
       const messages =
-        await MessageRepository.findMessages(
-          conversationId,
-          cursor,
-          limit
-        );
+        cached.map((m) => JSON.parse(m));
 
-      return messages.reverse();
+      const oldestMessage =
+        messages[0];
+
+      const hasMore =
+        await Message.exists({
+          conversation: conversationId,
+          _id: {
+            $lt: oldestMessage._id
+          }
+        });
+
+      return {
+        messages,
+        nextCursor: oldestMessage?._id ?? null,
+        hasMore: Boolean(hasMore)
+      };
+
     }
+  }
+
+  const result =
+    await MessageRepository.findMessages(
+      conversationId,
+      cursor,
+      limit
+    );
+
+  return {
+    messages: result.messages.reverse(),
+    nextCursor: result.nextCursor,
+    hasMore: result.hasMore
+  };
+
+}
 
 //edit message (only within 15 minutes of sending and only by sender)
 

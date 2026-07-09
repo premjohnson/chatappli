@@ -3,6 +3,7 @@ import { sendMessageApi } from "../api/sendMessage.api"
 import { useAuthStore } from "../../../store/auth.store"
 import type { EncryptedPayload, Message } from "../types/message.types"
 import type { Conversation } from "../../conversation/types/conversation.types"
+import { useChatStore } from "../../../store/chat.store"
 
     interface SendMessagePayload {
       conversationId: string;
@@ -39,18 +40,20 @@ export const useSendMessage = () => {
       console.log("payloadEncryptedContent", Boolean(newMsgPayload.encryptedContent))
       console.log("payloadNonce", Boolean(newMsgPayload.nonce))
       console.log("payloadEncryptedPayloads", newMsgPayload.encryptedPayloads)
-      console.log("previousPages", (previousMessages as { pages?: Message[][] } | undefined)?.pages?.map(
-        (page) => page.map((msg) => ({
-          id: msg._id,
-          clientMessageId: msg.clientMessageId,
-          senderDeviceId: msg.senderDeviceId
-        }))
-      ))
-      console.groupEnd()
+      console.log("previousPages", (previousMessages as any)?.pages?.map(
+        (page: any) =>
+          page.data.map((msg: Message) => ({
+            id: msg._id,
+            clientMessageId: msg.clientMessageId,
+            senderDeviceId: msg.senderDeviceId
+          }))
+      )
+    )
+      console.groupEnd();
 
       queryClient.setQueryData(
         ["messages", newMsgPayload.conversationId],
-        (old: { pages: Message[][], pageParams: unknown[] } | undefined) => {
+        (old: any) => {
           if (!old || !old.pages) return old
 
           // Optimistic ephemeral message structure
@@ -83,11 +86,30 @@ export const useSendMessage = () => {
           console.log("encryptedPayloads", optimisticMsg.encryptedPayloads)
           console.groupEnd()
 
+          // Update Zustand store's latest messages mapping
+          useChatStore.getState().setLatestMessage(optimisticMsg)
+
           // In infinite queries, pages[0] contains the NEWEST messages on that page.
           // Since the API returns the messages in ascending order (oldest first),
           // we append (push) the optimistic message to the end of pages[0].
           const newPages = [...old.pages]
-          newPages[0] = [...newPages[0], optimisticMsg]
+          if (newPages.length === 0) {
+            newPages[0] = {
+              data: [optimisticMsg],
+              pagination: {
+                nextCursor: null,
+                hasMore: false
+              }
+            }
+          } else {
+            newPages[0] = {
+              ...newPages[0],
+              data: [
+                ...(newPages[0].data || []),
+                optimisticMsg
+              ]
+            }
+          }
 
           return {
             ...old,
@@ -113,16 +135,21 @@ export const useSendMessage = () => {
 
       queryClient.setQueryData(
         ["messages", variables.conversationId],
-        (old: { pages: Message[][], pageParams: unknown[] } | undefined) => {
+        (old: any) => {
           if (!old || !old.pages) return old
 
           console.group("MESSAGE STATE UPDATE")
           console.log("source", "useSendMessage.onSuccess.replaceOptimistic")
-          console.log("oldPages", old.pages.map((page) => page.map((msg) => ({
-            id: msg._id,
-            clientMessageId: msg.clientMessageId,
-            senderDeviceId: msg.senderDeviceId
-          }))))
+          console.log(
+            "oldPages",
+            old.pages.map((page: any) =>
+              page.data.map((msg: Message) => ({
+                id: msg._id,
+                clientMessageId: msg.clientMessageId,
+                senderDeviceId: msg.senderDeviceId
+              }))
+            )
+          )
           console.log("replacement", {
             id: newMessage._id,
             clientMessageId: newMessage.clientMessageId,
@@ -132,13 +159,15 @@ export const useSendMessage = () => {
 
           return {
             ...old,
-            pages: old.pages.map(page =>
-              page.map(msg =>
-                msg._id.startsWith("temp-") && msg.clientMessageId === variables.clientMessageId
-                  ? newMessage  // Replace optimistic with real
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              data: page.data.map((msg: Message) =>
+                msg._id.startsWith("temp-") &&
+                msg.clientMessageId === variables.clientMessageId
+                  ? newMessage
                   : msg
               )
-            )
+            }))
           }
         }
       )
@@ -159,12 +188,25 @@ export const useSendMessage = () => {
           )
         }
       )
+
+      // Update Zustand store's latest messages mapping
+      useChatStore.getState().setLatestMessage(newMessage)
     },
 
-    onError: (_err: Error, _newMsg: SendMessagePayload, context?: { previousMessages: unknown; conversationId: string }) => {
-      if (context?.previousMessages) {
-        queryClient.setQueryData(["messages", context.conversationId], context.previousMessages)
-      }
+    onError: (_err: Error, variables: SendMessagePayload) => {
+      queryClient.setQueryData(
+        ["messages", variables.conversationId],
+        (old: any) => {
+          if (!old || !old.pages) return old
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              data: page.data.filter((msg: Message) => msg.clientMessageId !== variables.clientMessageId)
+            }))
+          }
+        }
+      )
     }
 
     // ✅ Removed onSettled invalidation - no need to re-fetch after success with updated cache
