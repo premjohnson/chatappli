@@ -39,6 +39,7 @@ const deviceSchema = new Schema(
 );
 
 deviceSchema.index({ user: 1 });
+deviceSchema.index({ user: 1, isActive: 1 });
 deviceSchema.index({ deviceId: 1 }, { unique: true });
 
 export default mongoose.model('Device', deviceSchema);

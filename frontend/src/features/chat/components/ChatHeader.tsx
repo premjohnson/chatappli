@@ -1,18 +1,20 @@
 import { useChatStore } from "../../../store/chat.store"
 import { useAuthStore } from "../../../store/auth.store"
+import { useMemo } from "react"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { motion } from "framer-motion"
-import { Info, ChevronLeft } from "lucide-react"
+import { Info, ChevronLeft, Search } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
 
 interface ChatHeaderProps {
   conversationId: string
   onOpenUserInfo: () => void
+  onToggleSearch?: () => void
 }
 
-export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) {
+export function ChatHeader({ conversationId, onOpenUserInfo, onToggleSearch,}: ChatHeaderProps) {
   const presenceMap = useChatStore((s) => s.presenceMap)
   const typingMap = useChatStore((s) => s.typingMap)
   const currentUser = useAuthStore((s) => s.user)
@@ -23,7 +25,32 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
   const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
   const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
-  const isTyping = typingMap[conversationId || ""]?.includes(receiverId) || false
+
+  // For groups, check all other typing users; for DMs, check only the receiver
+  const typingUserIds = typingMap[conversationId || ""] || []
+  const otherTypingUserIds = typingUserIds.filter(id => id !== currentUser?.id)
+  const isTyping = otherTypingUserIds.length > 0
+
+  const typingText = useMemo(() => {
+    if (!isTyping || !currentConvo) return ""
+    if (currentConvo.type === "private") {
+      return "is typing..."
+    }
+    const typingUsernames = otherTypingUserIds
+      .map(id => {
+        const participant = currentConvo.participants.find(p => {
+          const pId = (p.user as any)?._id || p.user
+          return pId.toString() === id
+        })
+        return (participant?.user as any)?.username || participant?.username || ""
+      })
+      .filter(Boolean)
+
+    if (typingUsernames.length === 0) return "Someone is typing..."
+    if (typingUsernames.length === 1) return `${typingUsernames[0]} is typing...`
+    if (typingUsernames.length === 2) return `${typingUsernames[0]} and ${typingUsernames[1]} are typing...`
+    return `${typingUsernames[0]} and ${typingUsernames.length - 1} others are typing...`
+  }, [isTyping, otherTypingUserIds, currentConvo])
 
   const displayName = currentConvo?.type === "group" ? currentConvo?.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Unknown User"
   const displayInitial = displayName ? displayName.charAt(0).toUpperCase() : "?"
@@ -44,7 +71,9 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
       {/* Avatar Container */}
       <div className="relative">
         <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold shadow-inner overflow-hidden border border-brand-primary/20">
-          {receiver?.avatar || (receiver?.user as any)?.avatar ? (
+          {currentConvo?.type === "group" && currentConvo.groupAvatar?.url ? (
+            <img src={currentConvo.groupAvatar.url} alt={displayName} className="w-full h-full object-cover" />
+          ) : receiver?.avatar || (receiver?.user as any)?.avatar ? (
             <img src={receiver?.avatar || (receiver?.user as any)?.avatar} alt={displayName} className="w-full h-full object-cover" />
           ) : (
             <span className="text-xl">{displayInitial}</span>
@@ -68,7 +97,7 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
                 <motion.span animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 h-1 bg-current rounded-full" />
                 <motion.span animate={{ opacity: [0.4, 1, 0.4] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 h-1 bg-current rounded-full" />
               </span>
-              <span>is typing...</span>
+              <span>{typingText}</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5">
@@ -84,14 +113,27 @@ export function ChatHeader({ conversationId, onOpenUserInfo }: ChatHeaderProps) 
       </div>
 
       {/* Actions */}
-      <Button 
-        variant="ghost" 
-        size="icon" 
-        onClick={onOpenUserInfo}
-        className="rounded-2xl hover:bg-brand-primary/5 text-gray-400 hover:text-brand-primary transition-colors h-10 w-10 shrink-0"
-      >
-        <Info className="h-5 w-5" />
-      </Button>
+      <div className="flex items-center gap-1">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onToggleSearch}
+          className="rounded-2xl hover:bg-brand-primary/5 text-gray-400 hover:text-brand-primary transition-colors h-10 w-10 shrink-0"
+          title="Search messages"
+        >
+          <Search className="h-5 w-5" />
+        </Button>
+        
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onOpenUserInfo}
+          className="rounded-2xl hover:bg-brand-primary/5 text-gray-400 hover:text-brand-primary transition-colors h-10 w-10 shrink-0"
+          title="Chat info"
+        >
+          <Info className="h-5 w-5" />
+        </Button>
+      </div>
     </div>
   )
 }

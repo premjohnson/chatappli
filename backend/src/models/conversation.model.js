@@ -33,6 +33,16 @@ const participantSchema = new Schema(
       default: false
     },
 
+    muteUntil: {
+      type: Date
+    },
+
+    muteType: {
+      type: String,
+      enum: ['all', 'mentions'],
+      default: 'all'
+    },
+
     unreadCount: {
       type: Number,
       default: 0
@@ -61,9 +71,34 @@ const groupSettingsSchema = new Schema(
       default: true
     },
 
+    onlyAdminsCanRemoveMembers: {
+      type: Boolean,
+      default: true
+    },
+
     onlyAdminsCanEditInfo: {
       type: Boolean,
       default: true
+    },
+
+    onlyAdminsCanPinMessages: {
+      type: Boolean,
+      default: true
+    },
+
+    slowModeDelay: {
+      type: Number,
+      default: 0
+    },
+
+    disappearingDuration: {
+      type: Number,
+      default: 0
+    },
+
+    memberApprovalsEnabled: {
+      type: Boolean,
+      default: false
     }
   },
   { _id: false }
@@ -157,7 +192,65 @@ const conversationSchema = new Schema(
     isBlocked: {
       type: Boolean,
       default: false
-    }
+    },
+
+    inviteLinks: [
+      {
+        code: {
+          type: String,
+          index: true,
+          sparse: true
+        },
+        createdBy: {
+          type: Types.ObjectId,
+          ref: 'User'
+        },
+        expiresAt: Date,
+        maxUses: Number,
+        usesCount: {
+          type: Number,
+          default: 0
+        },
+        isActive: {
+          type: Boolean,
+          default: true
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    joinRequests: [
+      {
+        user: {
+          type: Types.ObjectId,
+          ref: 'User'
+        },
+        requestedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ],
+
+    pinnedMessages: [
+      {
+        message: {
+          type: Types.ObjectId,
+          ref: 'Message'
+        },
+        pinnedBy: {
+          type: Types.ObjectId,
+          ref: 'User'
+        },
+        pinnedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
   },
   { timestamps: true }
 );

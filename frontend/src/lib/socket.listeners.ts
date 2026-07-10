@@ -31,7 +31,9 @@ export const registerSocketListeners = () => {
     const activeConversationId = useChatStore.getState().activeConversationId
     if (activeConversationId) {
       socket.emit("join:room", { conversationId: activeConversationId })
+      queryClient.invalidateQueries({ queryKey: ["messages", activeConversationId] })
     }
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
   })
 
   /* ================= MESSAGE LISTENERS ================= */
@@ -325,6 +327,33 @@ export const registerSocketListeners = () => {
         isFrozen: update.isFrozen,
       }
     })
+  })
+
+  /* ================= GROUP LISTENERS ================= */
+
+  socket.on("group:update", () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    queryClient.invalidateQueries({ queryKey: ["group-devices"] })
+  })
+
+  socket.on("group:member:add", () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    queryClient.invalidateQueries({ queryKey: ["group-devices"] })
+  })
+
+  socket.on("group:member:remove", () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    queryClient.invalidateQueries({ queryKey: ["group-devices"] })
+  })
+
+  socket.on("group:member:role", () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    queryClient.invalidateQueries({ queryKey: ["group-devices"] })
+  })
+
+  socket.on("group:permission:update", () => {
+    queryClient.invalidateQueries({ queryKey: ["conversations"] })
+    queryClient.invalidateQueries({ queryKey: ["group-devices"] })
   })
 
 }

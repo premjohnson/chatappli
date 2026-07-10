@@ -14,6 +14,18 @@ class DeviceService {
     return DeviceRepository.findUserDevices(userId);
 
   }
+
+  static async getUsersDevices(userIds) {
+
+    return DeviceRepository.findUsersDevices(userIds);
+
+  }
+
+  static async getDevicesByUserIds(userIds) {
+
+    return DeviceRepository.findUsersDevices(userIds);
+
+  }
 //revoke a device (logout from that device)
   static async revokeDevice(userId, deviceId) {
 

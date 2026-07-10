@@ -1,5 +1,6 @@
-  import { memo, useMemo } from "react"
+  import { memo, useMemo, useEffect } from "react"
   import { decryptMessage } from "../../../utils/crypto"
+  import { decryptedCache } from "../../../utils/decryptedCache"
   import type { Message, EncryptedPayload } from "../types/message.types"
   import { motion } from "framer-motion"
   import { cn } from "../../../utils/cn"
@@ -177,6 +178,12 @@
         blockId: ""
       }
     }, [decryptedText])
+
+    useEffect(() => {
+      if (decryptedText && !decryptedText.startsWith("[")) {
+        decryptedCache.set(msg._id, parsedMessage.text)
+      }
+    }, [msg._id, decryptedText, parsedMessage.text])
     const time = useMemo(() => {
       return new Date(msg.createdAt).toLocaleTimeString([], {
         hour: "2-digit",

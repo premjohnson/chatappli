@@ -26,7 +26,13 @@ class DeviceRepository {
 
   static async findUserDevices(userId) {
     return Device.find({
-      user: userId,
+      user: userId
+    });
+  }
+
+  static async findUsersDevices(userIds) {
+    return Device.find({
+      user: { $in: userIds },
       isActive: true
     });
   }

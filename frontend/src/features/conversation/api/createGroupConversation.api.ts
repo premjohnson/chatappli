@@ -1,17 +1,22 @@
 import api from "../../../lib/axios"
 
 export const createGroupConversationApi = async (data: {
-  name: string
-  participants: string[]
+  groupName: string
+  groupAbout?: string
+  members: string[]
   avatar?: File
 }) => {
 
   const formData = new FormData()
 
-  formData.append("name", data.name)
+  formData.append("groupName", data.groupName)
 
-  data.participants.forEach((id) =>
-    formData.append("participants", id)
+  if (data.groupAbout) {
+    formData.append("groupAbout", data.groupAbout)
+  }
+
+  data.members.forEach((id) =>
+    formData.append("members", id)
   )
 
   if (data.avatar) {

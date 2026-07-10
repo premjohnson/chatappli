@@ -122,6 +122,19 @@ class MessageService {
           );
         }
 
+      if (
+        conversation.type === "group" &&
+        conversation.groupSettings?.slowModeDelay > 0 &&
+        !["owner", "admin"].includes(senderParticipant.role)
+      ) {
+        const slowmodeKey = `slowmode:${conversationId}:${userId}`;
+        const lastSentTime = await redis.get(slowmodeKey);
+        if (lastSentTime) {
+          throw new AppError("Slow mode is active. Please wait.", 429);
+        }
+        await redis.set(slowmodeKey, Date.now().toString(), "EX", conversation.groupSettings.slowModeDelay);
+      }
+
       const participantUserIds = conversation.participants.map(p => {
         const participantId = p.user._id || p.user;
         return participantId;
@@ -172,6 +185,12 @@ class MessageService {
         }
       }
 
+      // Check disappearing messages
+      let expiresAt = undefined;
+      if (conversation.groupSettings?.disappearingDuration > 0) {
+        expiresAt = new Date(Date.now() + conversation.groupSettings.disappearingDuration * 1000);
+      }
+
       /* create message */
      //i cmt for for few changes becuz for multi device encyption
       const savedMessage =
@@ -197,7 +216,8 @@ class MessageService {
               forwardedFrom,
               signature,
               senderDeviceId,
-              clientMessageId
+              clientMessageId,
+              expiresAt
             }, session);
 
 

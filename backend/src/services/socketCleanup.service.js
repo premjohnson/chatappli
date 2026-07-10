@@ -54,58 +54,41 @@ class SocketCleanupService {
       socket.typingConversations.clear();
     }
 
-// Decrement connection count and possibly set user offline
+    // Fetch remaining active connections in the cluster
+    try {
+      const activeSockets = await io.in(`user:${userId}`).fetchSockets();
 
-    const count =
+      if (activeSockets.length === 0) {
+        setTimeout(async () => {
+          try {
+            const latestSockets = await io.in(`user:${userId}`).fetchSockets();
 
-      await PresenceService
-        .decrementConnections(
-          userId
-        );
-// If no more active connections, set user offline and emit presence update
+            if (latestSockets.length === 0) {
+              await PresenceService.setOffline(userId);
 
-    if (count === 0) {
+              /* Scoped offline broadcast */
+              const conversations = await mongoose.model("Conversation").find({
+                "participants.user": userId
+              }, { _id: 1 }).lean();
 
-      setTimeout(async () => {
+              conversations.forEach(conv => {
+                io.to(conv._id.toString()).emit(
+                  PRESENCE_EVENTS.USER_OFFLINE,
+                  { userId }
+                );
+              });
 
-        try {
-
-          const latestCount =
-
-            await PresenceService
-              .getConnectionCount(
-                userId
+              logger.info(
+                `User offline emitted to ${conversations.length} rooms: ${userId}`
               );
-
-          if (latestCount === 0) {
-            
-            /* Scoped offline broadcast */
-            const conversations = await mongoose.model("Conversation").find({
-              "participants.user": userId
-            }, { _id: 1 }).lean();
-
-            conversations.forEach(conv => {
-              io.to(conv._id.toString()).emit(
-                PRESENCE_EVENTS.USER_OFFLINE,
-                { userId }
-              );
-            });
-
-            logger.info(
-              `User offline emitted to ${conversations.length} rooms:
-               ${userId}`
-            );
+            }
+          } catch (error) {
+            logger.error(`Offline debounce failed: ${error.message}`);
           }
-
-        } catch (error) {
-
-          logger.error(
-            `Offline debounce failed:
-             ${error.message}`
-          );
-        }
-
-      }, 2000);
+        }, 2000);
+      }
+    } catch (error) {
+      logger.error(`Socket cleanup presence check failed: ${error.message}`);
     }
   }
 }

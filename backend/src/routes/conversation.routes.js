@@ -3,11 +3,20 @@ import {
   createPrivateConversation,
   createGroupConversation,
   updateGroupInfo,
+  updateGroupSettings,
   addParticipant,
   removeParticipant,
   promoteToAdmin,
+  demoteFromAdmin,
+  transferOwnership,
   getMyConversations,
-  deleteConversationForMe
+  deleteConversationForMe,
+  generateInviteLink,
+  revokeInviteLink,
+  getInviteInfo,
+  joinViaInvite,
+  handleJoinRequest,
+  muteConversation
 } from "../controllers/conversation.controller.js";
 
 import protect from "../middlewares/protect.middleware.js";
@@ -34,12 +43,20 @@ router.post(
 
 router.get("/", getMyConversations);
 
+// Invite Info (Note: placed before parameterized :conversationId routes)
+router.get("/invite/:code", getInviteInfo);
+
 /* ================= UPDATE ================= */
 
 router.patch(
   "/:conversationId",
   uploadAvatar,
   updateGroupInfo
+);
+
+router.patch(
+  "/:conversationId/settings",
+  updateGroupSettings
 );
 
 /* ================= MEMBERS ================= */
@@ -55,6 +72,24 @@ router.patch(
   "/:conversationId/promote",
   promoteToAdmin
 );
+
+router.patch(
+  "/:conversationId/demote",
+  demoteFromAdmin
+);
+
+router.patch(
+  "/:conversationId/transfer",
+  transferOwnership
+);
+
+/* ================= INVITES & JOIN REQUESTS ================= */
+
+router.post("/:conversationId/invite", generateInviteLink);
+router.post("/:conversationId/invite/revoke", revokeInviteLink);
+router.post("/invite/:code/join", joinViaInvite);
+router.post("/:conversationId/requests", handleJoinRequest);
+router.post("/:conversationId/mute", muteConversation);
 
 /* ================= DELETE ================= */
 

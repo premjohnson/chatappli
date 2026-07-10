@@ -45,10 +45,28 @@ export default function ConversationItem({
   const myParticipantData = conversation.participants.find((p) => isParticipantCurrentUser(p, currentUser?.id))
   const unreadCount = myParticipantData?.unreadCount || 0
 
+  const latestMsg = useMemo(() => {
+    return latestMessage ||
+      (conversation.lastMessage &&
+       typeof conversation.lastMessage === "object" &&
+       "_id" in conversation.lastMessage
+        ? conversation.lastMessage
+        : null)
+  }, [latestMessage, conversation.lastMessage])
+
+  const lastMessageSenderId = latestMsg ? (latestMsg as any).sender : ""
+  const isLastMessageSentByMe = lastMessageSenderId === currentUser?.id
+
   const { data: receiverDevices } = useQuery({
     queryKey: ["devices", "user", receiverId],
     queryFn: () => getUserDevices(receiverId),
-    enabled: Boolean(receiverId)
+    enabled: conversation.type === "private" && Boolean(receiverId)
+  })
+
+  const { data: lastMessageSenderDevices } = useQuery({
+    queryKey: ["devices", "user", lastMessageSenderId],
+    queryFn: () => getUserDevices(lastMessageSenderId),
+    enabled: Boolean(lastMessageSenderId && !isLastMessageSentByMe)
   })
 
   const { data: senderDevices } = useQuery({
@@ -61,15 +79,6 @@ export default function ConversationItem({
 
   const displayText = useMemo(() => {
     let text = "Click to view messages..."
-    const latestMsg =
-        latestMessage ||
-        (
-          conversation.lastMessage &&
-          typeof conversation.lastMessage === "object" &&
-          "_id" in conversation.lastMessage
-            ? conversation.lastMessage
-            : null
-        )
     if (!latestMsg) return text
 
     try {
@@ -94,7 +103,7 @@ export default function ConversationItem({
       if (latestMsgAny.senderDeviceId) {
         const senderDevice = isSent
           ? senderDevices?.find((device) => device.deviceId === latestMsgAny.senderDeviceId)
-          : receiverDevices?.find((device) => device.deviceId === latestMsgAny.senderDeviceId)
+          : lastMessageSenderDevices?.find((device) => device.deviceId === latestMsgAny.senderDeviceId)
 
         if (!senderDevice) return "Encrypted Message"
         senderPublicKey = senderDevice.publicKey
@@ -115,16 +124,15 @@ export default function ConversationItem({
       } catch { text = raw }
     } catch { text = "Encrypted Message" }
     return text
-  },[
-  latestMessage,
-  conversation.lastMessage,
-  currentUser?.id,
-  currentDeviceId,
-  identityPrivateKey,
-  receiverPublicKey,
-  receiverDevices,
-  senderDevices
-])
+  }, [
+    latestMsg,
+    currentUser?.id,
+    currentDeviceId,
+    identityPrivateKey,
+    receiverPublicKey,
+    lastMessageSenderDevices,
+    senderDevices
+  ])
 
   const displayName = (conversation.type === "group" ? conversation.groupName || "Group Chat" : receiver?.username || (receiver?.user as any)?.username || "Private Participant") as string
 

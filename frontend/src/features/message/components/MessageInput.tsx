@@ -25,6 +25,15 @@ export function MessageInput({ conversationId }: Props) {
   const { data: conversations } = useMyConversations()
   const currentUser = useAuthStore((s) => s.user)
 
+  const currentConvo = conversations?.find((c: Conversation) => c._id === conversationId)
+
+  const myParticipant = currentConvo?.participants.find(
+    (p: ConversationParticipant) => isParticipantCurrentUser(p, currentUser?.id)
+  )
+  const isOnlyAdminsCanSend = currentConvo?.groupSettings?.onlyAdminsCanSend ?? false
+  const isRequesterAdminOrOwner = myParticipant && ["owner", "admin"].includes(myParticipant.role)
+  const cannotSend = currentConvo?.type === "group" && isOnlyAdminsCanSend && !isRequesterAdminOrOwner
+
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleTyping = (value: string) => {
@@ -68,13 +77,13 @@ export function MessageInput({ conversationId }: Props) {
     let senderDevices: Device[] = []
 
     try {
-      const [receiverActiveDevices, senderActiveDevices] = await Promise.all([
+      const [receiverAllDevices, senderAllDevices] = await Promise.all([
         getUserDevices(receiverUserId),
         getUserDevices(senderUserId)
       ])
 
-      receiverDevices = receiverActiveDevices
-      senderDevices = senderActiveDevices
+      receiverDevices = receiverAllDevices.filter(d => d.isActive)
+      senderDevices = senderAllDevices.filter(d => d.isActive)
     } catch (error) {
       console.error("Failed to fetch active devices:", error)
       return
@@ -175,42 +184,50 @@ export function MessageInput({ conversationId }: Props) {
       className="p-4 md:p-6 pt-2"
     >
       <div className="glass-floating rounded-3xl p-2 flex gap-2 items-center shadow-xl border-white/40">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsModalOpen(true)}
-          className="rounded-full shrink-0"
-          title="Create collaborative checklist/poll"
-        >
-          <PlusCircle className="h-5 w-5 text-gray-400 hover:text-brand-primary transition-colors" />
-        </Button>
+        {cannotSend ? (
+          <div className="flex-1 text-center py-3 text-xs text-gray-400 font-bold uppercase tracking-widest select-none">
+            🔒 Only admins can send messages to this group
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsModalOpen(true)}
+              className="rounded-full shrink-0"
+              title="Create collaborative checklist/poll"
+            >
+              <PlusCircle className="h-5 w-5 text-gray-400 hover:text-brand-primary transition-colors" />
+            </Button>
 
-        <Button variant="ghost" size="icon" className="rounded-full shrink-0 hidden sm:flex">
-          <Paperclip className="h-5 w-5 text-gray-400" />
-        </Button>
-        
-        <input
-          value={text}
-          onChange={(e) => handleTyping(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
-          className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder:text-gray-400 py-3 px-2 text-[15px]"
-        />
+            <Button variant="ghost" size="icon" className="rounded-full shrink-0 hidden sm:flex">
+              <Paperclip className="h-5 w-5 text-gray-400" />
+            </Button>
+            
+            <input
+              value={text}
+              onChange={(e) => handleTyping(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type a message..."
+              className="flex-1 bg-transparent border-none focus:ring-0 text-gray-800 placeholder:text-gray-400 py-3 px-2 text-[15px]"
+            />
 
-        <div className="flex items-center gap-1 pr-1">
-          <Button variant="ghost" size="icon" className="rounded-full shrink-0 hidden sm:flex">
-            <Smile className="h-5 w-5 text-gray-400" />
-          </Button>
-          
-          <Button 
-            onClick={send} 
-            disabled={!text.trim()}
-            size="icon"
-            className="rounded-full h-10 w-10 bg-brand-primary hover:bg-brand-primary/90 text-white shadow-md transition-all active:scale-95"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
-        </div>
+            <div className="flex items-center gap-1 pr-1">
+              <Button variant="ghost" size="icon" className="rounded-full shrink-0 hidden sm:flex">
+                <Smile className="h-5 w-5 text-gray-400" />
+              </Button>
+              
+              <Button 
+                onClick={send} 
+                disabled={!text.trim()}
+                size="icon"
+                className="rounded-full h-10 w-10 bg-brand-primary hover:bg-brand-primary/90 text-white shadow-md transition-all active:scale-95"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
+        )}
       </div>
 
       <CreateLiveBlockModal

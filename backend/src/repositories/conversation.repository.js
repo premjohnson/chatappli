@@ -10,6 +10,10 @@ class ConversationRepository {
       .populate({
         path: "participants.user",
         select: "username avatar publicKey"
+      })
+      .populate({
+        path: "createdBy",
+        select: "username avatar"
       });
 
     if (session) query.session(session);

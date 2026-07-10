@@ -3,7 +3,8 @@ import {
   registerDevice,
   getMyDevices,
   revokeDevice,
-  getDevicesByUserId
+  getDevicesByUserId,
+  getDevicesByUserIds
 } from "../controllers/device.controller.js";
 
 import protect from "../middlewares/protect.middleware.js";
@@ -19,6 +20,8 @@ router.post("/", registerDevice);
 router.get("/", getMyDevices);
 
 router.get("/user/:userId", getDevicesByUserId);
+
+router.post("/users", getDevicesByUserIds);
 
 router.delete("/:deviceId", revokeDevice);
 

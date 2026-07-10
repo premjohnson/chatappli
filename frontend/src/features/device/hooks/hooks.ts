@@ -43,6 +43,7 @@ export const useRegisterDevice = () => {
         ["devices"],
         (old = []) => [...old, device]
       )
+      queryClient.invalidateQueries({ queryKey: ["group-devices"] })
 
     }
 
@@ -71,6 +72,7 @@ export const useRevokeDevice = () => {
         (old = []) =>
           old.filter(d => d.deviceId !== deviceId)
       )
+      queryClient.invalidateQueries({ queryKey: ["group-devices"] })
 
     }
 

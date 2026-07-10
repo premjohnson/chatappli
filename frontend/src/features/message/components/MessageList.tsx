@@ -3,8 +3,9 @@ import { useMessages } from "../hooks/useMessages"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import MessageBubble from "./MessageBubble"
-import { getUserDevices } from "../../device/device.service"
+import { getUserDevices, getUsersDevices } from "../../device/device.service"
 import { useQuery } from "@tanstack/react-query"
+import { decryptedCache } from "../../../utils/decryptedCache"
 
 import { useMemo, useRef, useEffect } from "react"
 import type { Device } from "../../device/types/device.types"
@@ -13,9 +14,10 @@ const EMPTY_DEVICES: Device[] = []
 
 interface Props {
   conversationId: string
+  searchQuery?: string
 }
 
-export default function MessageList({ conversationId }: Props) {
+export default function MessageList({ conversationId, searchQuery }: Props) {
 
   const { data } = useMessages(conversationId)
   const { data: conversations } = useMyConversations()
@@ -31,11 +33,26 @@ export default function MessageList({ conversationId }: Props) {
       return []
     }
 
-    return [...data.pages]
+    const all = [...data.pages]
       .reverse()
       .flatMap(page => page.data)
 
-  }, [data])
+    if (!searchQuery?.trim()) return all
+
+    return all.filter((msg) => {
+      if (msg.type === "system") {
+        return msg.encryptedContent?.toLowerCase().includes(searchQuery.toLowerCase())
+      }
+
+      if (msg.fileMeta?.fileName?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        return true
+      }
+
+      const decrypted = decryptedCache.get(msg._id)
+      return decrypted?.toLowerCase().includes(searchQuery.toLowerCase())
+    })
+
+  }, [data, searchQuery])
 
   const currentConvo = conversations?.find(
     (c) => c._id === conversationId
@@ -47,34 +64,63 @@ export default function MessageList({ conversationId }: Props) {
 
   const receiverUserId = getParticipantUserId(receiver)
 
-  // Fetch receiver active devices
+  const participantUserIds = useMemo(() => {
+    if (!currentConvo) return []
+    return currentConvo.participants.map((p) => {
+      const u = p.user as any
+      return (u?._id || p.user).toString()
+    })
+  }, [currentConvo])
+
+  // Fetch group devices in bulk
+  const { data: groupDevices } = useQuery({
+    queryKey: ["devices", "group", conversationId],
+    queryFn: () => getUsersDevices(participantUserIds),
+    enabled: currentConvo?.type === "group" && participantUserIds.length > 0
+  })
+
+  // Fetch receiver active devices (for 1:1)
   const { data: receiverDevices } = useQuery({
     queryKey: ["devices", "user", receiverUserId],
     queryFn: () => getUserDevices(receiverUserId),
-    enabled: Boolean(receiverUserId)
+    enabled: currentConvo?.type === "private" && Boolean(receiverUserId)
   })
 
   const { data: senderDevices } = useQuery({
     queryKey: ["devices", "user", currentUser?.id],
     queryFn: () => currentUser?.id ? getUserDevices(currentUser.id) : Promise.resolve([]),
-    enabled: Boolean(currentUser?.id)
+    enabled: currentConvo?.type === "private" && Boolean(currentUser?.id)
   })
 
-  const receiverDevicesSorted = useMemo(() => {
-    if (!receiverDevices) return EMPTY_DEVICES
-    return [...receiverDevices].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-    )
-  }, [receiverDevices])
+  const senderDevicesList = useMemo(() => {
+    if (currentConvo?.type === "group") {
+      return groupDevices?.filter((d) => d.userId === currentUser?.id) || EMPTY_DEVICES
+    }
+    return senderDevices || EMPTY_DEVICES
+  }, [currentConvo?.type, groupDevices, senderDevices, currentUser?.id])
 
-  const receiverPublicKey = receiverDevicesSorted[0]?.publicKey || ""
+  const receiverDevicesList = useMemo(() => {
+    if (currentConvo?.type === "group") {
+      return groupDevices?.filter((d) => d.userId !== currentUser?.id) || EMPTY_DEVICES
+    }
+    return receiverDevices || EMPTY_DEVICES
+  }, [currentConvo?.type, groupDevices, receiverDevices, currentUser?.id])
+
+  const receiverDevicesSorted = useMemo(() => {
+    if (!receiverDevicesList) return EMPTY_DEVICES
+    return [...receiverDevicesList].sort(
+      (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+    )
+  }, [receiverDevicesList])
+
+  const receiverPublicKey = currentConvo?.type === "group" ? "" : (receiverDevicesSorted[0]?.publicKey || "")
 
   const senderDevicesSorted = useMemo(() => {
-    if (!senderDevices) return EMPTY_DEVICES
-    return [...senderDevices].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    if (!senderDevicesList) return EMPTY_DEVICES
+    return [...senderDevicesList].sort(
+      (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
     )
-  }, [senderDevices])
+  }, [senderDevicesList])
 
   console.log("Render MessageList", {
     conversationId,

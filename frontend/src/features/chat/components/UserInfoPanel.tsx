@@ -1,25 +1,52 @@
-import type { ConversationParticipant } from "../../conversation/types/conversation.types"
-import { motion } from "framer-motion"
-import { X, Mail, Shield, Image, Ban, User } from "lucide-react"
+import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
+import { motion, AnimatePresence } from "framer-motion"
+import { X, Mail, Shield, Image, Ban, User, VolumeX, Volume2 } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
+import { useState, useMemo } from "react"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { muteConversationApi } from "../../conversation/api/muteConversation.api"
 
 interface UserInfoPanelProps {
   participant: ConversationParticipant
   isOnline: boolean
   onClose: () => void
+  conversationId?: string
 }
 
 export default function UserInfoPanel({
   participant,
   isOnline,
-  onClose
+  onClose,
+  conversationId
 }: UserInfoPanelProps) {
+  const queryClient = useQueryClient()
   const user = participant.user as any
   const username = user?.username || participant.username || "Unknown User"
   const email = user?.email || participant.email || ""
   const avatar = user?.avatar || participant.avatar || ""
 
   const initial = username.charAt(0).toUpperCase()
+
+  const [showMuteOptions, setShowMuteOptions] = useState(false)
+
+  const isMuted = useMemo(() => {
+    if (!participant?.muteUntil) return false
+    return new Date(participant.muteUntil) > new Date()
+  }, [participant?.muteUntil])
+
+  const muteMutation = useMutation({
+    mutationFn: (payload: { muteType: any; durationSeconds?: number }) => {
+      if (!conversationId) throw new Error("Conversation ID missing")
+      return muteConversationApi(conversationId, payload)
+    },
+    onSuccess: (updatedConvo: Conversation) => {
+      queryClient.setQueryData<Conversation[]>(["conversations"], (old) => {
+        if (!old) return []
+        return old.map((c) => (c._id === conversationId ? { ...c, ...updatedConvo } : c))
+      })
+      setShowMuteOptions(false)
+    }
+  })
 
   return (
     <div className="absolute inset-0 z-50 overflow-hidden pointer-events-none">
@@ -112,8 +139,36 @@ export default function UserInfoPanel({
           </div>
         </div>
 
+        {/* Mute Notifications Toggle */}
+        <div className="border-t border-white/10 px-6 py-4 flex items-center justify-between select-none shrink-0">
+          <span className="text-xs font-bold text-gray-700">Mute Notifications</span>
+          {isMuted ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => muteMutation.mutate({ muteType: "unmute" })}
+              disabled={muteMutation.isPending || !conversationId}
+              className="h-7 px-2.5 gap-1.5 text-xs text-red-500 hover:bg-red-50"
+            >
+              <VolumeX className="h-4 w-4" />
+              Muted
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowMuteOptions(true)}
+              disabled={muteMutation.isPending || !conversationId}
+              className="h-7 px-2.5 gap-1.5 text-xs text-gray-500 hover:bg-gray-50"
+            >
+              <Volume2 className="h-4 w-4" />
+              Mute
+            </Button>
+          )}
+        </div>
+
         {/* Footer Actions */}
-        <div className="p-6 bg-white/40 border-t border-white/10 space-y-3">
+        <div className="p-6 bg-white/40 border-t border-white/10 space-y-3 shrink-0">
           <Button className="w-full justify-start gap-3 h-11 rounded-xl text-xs font-bold uppercase tracking-wider">
             <User className="h-4 w-4" />
             View Full Profile
@@ -124,6 +179,49 @@ export default function UserInfoPanel({
           </Button>
         </div>
       </motion.div>
+
+      {/* Mute Options Overlay Sheet */}
+      <AnimatePresence>
+        {showMuteOptions && (
+          <div className="absolute inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-[2px] pointer-events-auto p-4 select-none">
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              className="w-full max-w-sm bg-white rounded-3xl overflow-hidden shadow-2xl p-5 space-y-3"
+            >
+              <div className="text-center py-2">
+                <p className="font-black text-gray-900 text-sm">Mute notifications for...</p>
+              </div>
+
+              <div className="space-y-1">
+                {[
+                  { key: "8_hours", label: "Mute for 8 Hours" },
+                  { key: "1_week", label: "Mute for 1 Week" },
+                  { key: "always", label: "Mute Always" }
+                ].map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={() => muteMutation.mutate({ muteType: option.key })}
+                    disabled={muteMutation.isPending}
+                    className="w-full text-left p-3 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-2xl transition-colors cursor-pointer"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <Button
+                variant="ghost"
+                onClick={() => setShowMuteOptions(false)}
+                className="w-full justify-center text-xs font-bold text-gray-500 rounded-2xl h-10 border border-gray-100"
+              >
+                Cancel
+              </Button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

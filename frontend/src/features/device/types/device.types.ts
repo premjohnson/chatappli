@@ -18,6 +18,15 @@ export interface Device {
     updatedAt: string
 }
 
+export interface DeviceInfo {
+  userId: string
+  deviceId: string
+  publicKey: string
+  identityKey: string
+  signedPreKey: string
+  isActive: boolean
+}
+
 export interface RegisterDevicePayload {
     deviceId: string
     deviceClient?: string

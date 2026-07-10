@@ -4,12 +4,15 @@ import { ChatHeader } from "./ChatHeader"
 import MessageList from "../../message/components/MessageList"
 import { MessageInput } from "../../message/components/MessageInput"
 import UserInfoPanel from "./UserInfoPanel"
+import GroupInfoPanel from "./GroupInfoPanel"
 import { useMyConversations } from "../../conversation/hooks/useMyConversations"
 import { markAsReadApi } from "../../message/api/markAsRead.api"
 import { joinConversationRoom, leaveConversationRoom } from "../../../lib/socket"
 import { useEffect, useRef, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Shield, Lock, Key } from "lucide-react"
+import { Shield, Lock, Key, Search } from "lucide-react"
+import { Input } from "../../../components/ui/Input"
+import { Button } from "../../../components/ui/Button"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { useMessages } from "../../message/hooks/useMessages"
@@ -21,6 +24,8 @@ export function ChatWindow() {
   const currentUser = useAuthStore((s) => s.user)
   const { data: conversations } = useMyConversations()
   const [showUserInfo, setShowUserInfo] = useState(false)
+  const [chatSearchQuery, setChatSearchQuery] = useState("")
+  const [isSearchActive, setIsSearchActive] = useState(false)
   const isMarkingRead = useRef(false)
   const { data: messageData } = useMessages(activeConversationId ?? "");
 
@@ -141,21 +146,53 @@ export function ChatWindow() {
           <ChatHeader
             conversationId={activeConversationId}
             onOpenUserInfo={() => setShowUserInfo(true)}
+            onToggleSearch={() => setIsSearchActive(!isSearchActive)}
           />
 
+          {isSearchActive && (
+            <div className="px-6 py-2.5 bg-gray-50 border-b border-white/10 flex items-center gap-3 select-none">
+              <Input
+                placeholder="Search messages in this chat..."
+                value={chatSearchQuery}
+                onChange={(e) => setChatSearchQuery(e.target.value)}
+                className="bg-white text-xs h-9 py-1 flex-1"
+                icon={<Search className="h-4 w-4" />}
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsSearchActive(false)
+                  setChatSearchQuery("")
+                }}
+                className="h-8 text-xs font-bold"
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto custom-scrollbar relative">
-            <MessageList conversationId={activeConversationId} />
+            <MessageList conversationId={activeConversationId} searchQuery={chatSearchQuery} />
           </div>
 
           <MessageInput conversationId={activeConversationId} />
 
           <AnimatePresence>
-            {showUserInfo && receiver && (
-              <UserInfoPanel
-                participant={receiver}
-                isOnline={isOnline}
-                onClose={() => setShowUserInfo(false)}
-              />
+            {showUserInfo && currentConvo && (
+              currentConvo.type === "group" ? (
+                <GroupInfoPanel
+                  conversation={currentConvo}
+                  onClose={() => setShowUserInfo(false)}
+                />
+              ) : receiver ? (
+                <UserInfoPanel
+                  participant={receiver}
+                  isOnline={isOnline}
+                  conversationId={activeConversationId ?? undefined}
+                  onClose={() => setShowUserInfo(false)}
+                />
+              ) : null
             )}
           </AnimatePresence>
         </>
