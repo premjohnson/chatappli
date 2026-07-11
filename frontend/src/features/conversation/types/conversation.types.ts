@@ -8,6 +8,13 @@ export interface ConversationParticipant {
   unreadCount?: number
   lastReadAt?: string
   user?: Record<string, unknown>
+  muteUntil?: string | null
+  joinedAt?: string
+}
+
+export interface InviteLinkOptions {
+  maxUses?: number
+  expiresIn?: number
 }
 
 export interface ConversationEncryptionMeta {
@@ -41,6 +48,8 @@ export interface Conversation {
   lastMessageAt?: string
   createdAt: string
   updatedAt: string
+  inviteLinks?: any[]
+  joinRequests?: any[]
 }
 
 export interface CreatePrivateConversationPayload {

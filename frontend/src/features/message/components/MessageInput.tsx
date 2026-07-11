@@ -8,11 +8,12 @@ import { Send, Paperclip, Smile, PlusCircle } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
 import { motion } from "framer-motion"
 import { CreateLiveBlockModal } from "../../chat/components/CreateLiveBlockModal"
-import { getUserDevices } from "../../device/device.service"
+import { getUserDevices, getUsersDevices } from "../../device/device.service"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
-import type { Device } from "../../device/types/device.types"
+import type { Device, DeviceInfo } from "../../device/types/device.types"
 import type { EncryptedPayload } from "../types/message.types"
+import { queryClient } from "../../../lib/queryClient"
 
 interface Props {
   conversationId: string
@@ -31,7 +32,7 @@ export function MessageInput({ conversationId }: Props) {
     (p: ConversationParticipant) => isParticipantCurrentUser(p, currentUser?.id)
   )
   const isOnlyAdminsCanSend = currentConvo?.groupSettings?.onlyAdminsCanSend ?? false
-  const isRequesterAdminOrOwner = myParticipant && ["owner", "admin"].includes(myParticipant.role)
+  const isRequesterAdminOrOwner = myParticipant && myParticipant.role && ["owner", "admin"].includes(myParticipant.role as any)
   const cannotSend = currentConvo?.type === "group" && isOnlyAdminsCanSend && !isRequesterAdminOrOwner
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -58,61 +59,89 @@ export function MessageInput({ conversationId }: Props) {
       return
     }
 
-    const receiver = currentConvo.participants.find(
-      (p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id)
-    )
-    const receiverUserId = getParticipantUserId(receiver)
-    if (!receiverUserId) {
-      console.warn("Receiver user ID not found")
-      return
-    }
-
     const senderUserId = currentUser?.id
     if (!senderUserId) {
       console.warn("Sender user ID not found")
       return
     }
 
-    let receiverDevices: Device[] = []
-    let senderDevices: Device[] = []
+    let activeDevices: (Device | DeviceInfo)[] = [];
 
-    try {
-      const [receiverAllDevices, senderAllDevices] = await Promise.all([
-        getUserDevices(receiverUserId),
-        getUserDevices(senderUserId)
-      ])
+    if (currentConvo.type === "group") {
+      const participantUserIds = currentConvo.participants.map((p) => {
+        const u = p.user as any;
+        return (u?._id || p.user).toString();
+      });
 
-      receiverDevices = receiverAllDevices.filter(d => d.isActive)
-      senderDevices = senderAllDevices.filter(d => d.isActive)
-    } catch (error) {
-      console.error("Failed to fetch active devices:", error)
-      return
+      let cachedGroupDevices = queryClient.getQueryData<DeviceInfo[]>(["devices", "group", conversationId]);
+      if (!cachedGroupDevices) {
+        try {
+          cachedGroupDevices = await getUsersDevices(participantUserIds);
+          queryClient.setQueryData(["devices", "group", conversationId], cachedGroupDevices);
+        } catch (error) {
+          console.error("Failed to fetch group devices:", error);
+          return;
+        }
+      }
+      activeDevices = (cachedGroupDevices || []).filter((d) => d.isActive);
+    } else {
+      const receiver = currentConvo.participants.find(
+        (p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id)
+      )
+      const receiverUserId = getParticipantUserId(receiver)
+      if (!receiverUserId) {
+        console.warn("Receiver user ID not found")
+        return
+      }
+
+      let receiverAllDevices = queryClient.getQueryData<Device[]>(["devices", "user", receiverUserId]);
+      if (!receiverAllDevices) {
+        try {
+          receiverAllDevices = await getUserDevices(receiverUserId);
+          queryClient.setQueryData(["devices", "user", receiverUserId], receiverAllDevices);
+        } catch (error) {
+          console.error("Failed to fetch receiver devices:", error);
+          return;
+        }
+      }
+
+      let senderAllDevices = queryClient.getQueryData<Device[]>(["devices", "user", senderUserId]);
+      if (!senderAllDevices) {
+        try {
+          senderAllDevices = await getUserDevices(senderUserId);
+          queryClient.setQueryData(["devices", "user", senderUserId], senderAllDevices);
+        } catch (error) {
+          console.error("Failed to fetch sender devices:", error);
+          return;
+        }
+      }
+
+      activeDevices = [
+        ...(receiverAllDevices || []).filter((d) => d.isActive).map(d => ({ ...d, userId: receiverUserId })),
+        ...(senderAllDevices || []).filter((d) => d.isActive).map(d => ({ ...d, userId: senderUserId }))
+      ];
     }
 
-    if (receiverDevices.length === 0) {
-      console.warn("Receiver has no active devices")
+    if (activeDevices.length === 0) {
+      console.warn("No active devices found for conversation")
       return
     }
 
     const payload = { text: messageText.trim(), file: null }
 
     try {
-      const devicesById = new Map<string, { userId: string; device: Device }>()
+      const devicesById = new Map<string, { userId: string; device: Device | DeviceInfo }>()
 
-      receiverDevices.forEach((device) => {
+      activeDevices.forEach((device) => {
+        const userId = (device as any).userId || ("user" in device ? device.user : undefined);
+        if (!userId) {
+          console.warn("Device missing userId or user property:", device)
+          return
+        }
         devicesById.set(device.deviceId, {
-          userId: receiverUserId,
+          userId: typeof userId === "object" ? (userId as any)._id.toString() : String(userId),
           device
         })
-      })
-
-      senderDevices.forEach((device) => {
-        if (!devicesById.has(device.deviceId)) {
-          devicesById.set(device.deviceId, {
-            userId: senderUserId,
-            device
-          })
-        }
       })
 
       const encryptedPayloads: EncryptedPayload[] = Array.from(devicesById.values()).map(

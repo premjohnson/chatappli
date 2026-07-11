@@ -7,14 +7,14 @@
   import { LiveBlockWidget } from "../../chat/components/LiveBlockWidget"
   import { Check, CheckCheck } from "lucide-react"
   import { useAuthStore } from "../../../store/auth.store"
-  import type { Device } from "../../device/types/device.types"
+  import type { Device, DeviceInfo } from "../../device/types/device.types"
 
   interface Props {
     msg: Message
     identityPrivateKey: string | null
     receiverPublicKey: string
-    receiverDevices?: Device[]
-    senderDevices?: Device[]
+    receiverDevices?: (Device | DeviceInfo)[]
+    senderDevices?: (Device | DeviceInfo)[]
   }
 
   const MessageBubble = memo(({

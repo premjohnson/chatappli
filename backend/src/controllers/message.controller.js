@@ -38,6 +38,10 @@ export const sendMessage = asyncHandler(async (req, res) => {
       io.to(`user:${senderId}`).emit("message:new", message);
     } else {
       io.to(message.conversation.toString()).emit("message:new", message);
+      recipientIds.forEach(pid => {
+        io.to(`user:${pid}`).emit("message:new", message);
+      });
+      io.to(`user:${senderId}`).emit("message:new", message);
     }
 
     // const onlineRecipientIds = [];
@@ -163,7 +167,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
     });
   }
 
-  const updatedMessages =
+  const { updatedMessages, participantIds } =
     await MessageService.markAsRead(
       conversationId,
       req.user._id
@@ -174,6 +178,11 @@ export const markAsRead = asyncHandler(async (req, res) => {
     updatedMessages.forEach(message => {
       io.to(conversationId).emit("message:read", {
         message
+      });
+      participantIds.forEach(pid => {
+        io.to(`user:${pid}`).emit("message:read", {
+          message
+        });
       });
     });
   } catch (err) {

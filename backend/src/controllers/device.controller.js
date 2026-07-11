@@ -46,6 +46,7 @@ export const getDevicesByUserId = asyncHandler(async (req, res) => {
   
   // Return list of devices with their public keys and active status
   const sanitizedDevices = devices.map(d => ({
+    userId: d.user,
     deviceId: d.deviceId,
     publicKey: d.publicKey,
     identityKey: d.identityKey,

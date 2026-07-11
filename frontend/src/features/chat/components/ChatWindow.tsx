@@ -80,8 +80,8 @@ export function ChatWindow() {
             if (!hasUnreadIncoming) return;
             if (isMarkingRead.current) return;
 
-            // Only mark as read if the document is visible and the window has focus
-            if (document.visibilityState !== "visible" || !document.hasFocus()) {
+            // Only mark as read if the document is visible
+            if (document.visibilityState !== "visible") {
                 return;
             }
 

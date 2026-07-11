@@ -3,7 +3,7 @@ import { useQueryClient, useMutation } from "@tanstack/react-query"
 import { useAuthStore } from "../../../store/auth.store"
 import { useChatStore } from "../../../store/chat.store"
 import { useSearchUsers } from "../../users/hooks/useSearchUsers"
-import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
+import type { Conversation, ConversationParticipant, InviteLinkOptions } from "../../conversation/types/conversation.types"
 import { isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { addParticipantApi } from "../../conversation/api/addParticipant.api"
 import { removeParticipantApi } from "../../conversation/api/removeParticipant.api"
@@ -20,7 +20,7 @@ import { decryptedCache } from "../../../utils/decryptedCache"
 import { muteConversationApi } from "../../conversation/api/muteConversation.api"
 import { useGroupDevices } from "../../device/hooks/useGroupDevices"
 import { motion, AnimatePresence } from "framer-motion"
-import { X, Shield, Plus, Trash2, LogOut, Edit3, Save, Image, Check, Search, ChevronDown, Crown, ShieldAlert, UserCheck, Link, Copy, RefreshCw, QrCode, VolumeX, Volume2 } from "lucide-react"
+import { X, Shield, Plus, Trash2, LogOut, Edit3, Save, Image, Check, Search, ChevronDown, Crown, ShieldAlert, UserCheck, Link, Copy, RefreshCw, VolumeX, Volume2 } from "lucide-react"
 import { Button } from "../../../components/ui/Button"
 import { Input } from "../../../components/ui/Input"
 import { cn } from "../../../utils/cn"
@@ -61,7 +61,7 @@ export default function GroupInfoPanel({
 
   // Mutations
   const updateGroupMutation = useMutation({
-    mutationFn: (data: { groupName?: string; groupAbout?: string; avatar?: File }) => 
+    mutationFn: (data: { groupName?: string; groupAbout?: string; avatar?: File; removeAvatar?: boolean }) => 
       updateGroupInfoApi(conversation._id, data),
     onSuccess: (updatedConvo) => {
       queryClient.setQueryData<Conversation[]>(["conversations"], (old) => {
@@ -285,10 +285,10 @@ export default function GroupInfoPanel({
   const onlineMembersCount = useMemo(() => {
     return conversation.participants.filter((p) => {
       const u = p.user as any
-      const memberId = u?._id || p.user
-      return presenceMap[memberId] || false
+      const memberId = (u?._id || p.user).toString()
+      return memberId === currentUser?.id || presenceMap[memberId] || false
     }).length
-  }, [conversation.participants, presenceMap])
+  }, [conversation.participants, presenceMap, currentUser?.id])
 
   const sortedParticipants = useMemo(() => {
     return [...conversation.participants].sort((a, b) => {
@@ -577,7 +577,7 @@ export default function GroupInfoPanel({
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => generateInviteMutation.mutate()}
+                              onClick={() => generateInviteMutation.mutate(undefined)}
                               disabled={generateInviteMutation.isPending}
                               className="flex-1 justify-center gap-1.5 h-8 text-[10px] font-black uppercase tracking-wider"
                             >
@@ -603,7 +603,7 @@ export default function GroupInfoPanel({
                         {isAdmin && (
                           <Button
                             size="sm"
-                            onClick={() => generateInviteMutation.mutate()}
+                            onClick={() => generateInviteMutation.mutate(undefined)}
                             disabled={generateInviteMutation.isPending}
                             className="mx-auto gap-1.5 h-9 text-xs font-bold"
                           >
@@ -991,11 +991,11 @@ export default function GroupInfoPanel({
             <div className="space-y-2 flex-1">
               {sortedParticipants.map((p) => {
                 const u = p.user as any
-                const memberId = u?._id || p.user
+                const memberId = (u?._id || p.user).toString()
                 const username = u?.username || p.username || "Unknown"
                 const avatar = u?.avatar || p.avatar || ""
-                const isMemberOnline = presenceMap[memberId] || false
                 const isMe = memberId === currentUser?.id
+                const isMemberOnline = isMe ? true : (presenceMap[memberId] || false)
 
                 return (
                   <div

@@ -701,7 +701,8 @@ static async getMessages(
 
       }
 
-      return updatedMessages;
+      const participantIds = conversation.participants.map(p => (p.user._id || p.user).toString());
+      return { updatedMessages, participantIds };
 
     });
 

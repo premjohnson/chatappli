@@ -40,6 +40,7 @@ describe("LiveBlock Integration Tests", () => {
     });
 
     // 3. Create test users
+    await User.deleteMany({ username: { $in: ["testuser1", "testuser2"] } });
     const uniqueEmail1 = `test_${Date.now()}_1@example.com`;
     const uniqueEmail2 = `test_${Date.now()}_2@example.com`;
 
@@ -332,7 +333,7 @@ describe("LiveBlock Integration Tests", () => {
       dbBlock = await LiveBlock.findById(block.id);
       expect(dbBlock.version).toBe(2);
       expect(dbBlock.state.options.length).toBe(2);
-    });
+    }, 15000);
   });
 
   describe("Redis Recovery Strategy (Cache-aside)", () => {

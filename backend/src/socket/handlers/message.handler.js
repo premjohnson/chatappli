@@ -63,6 +63,18 @@ export default function messageHandler(io, socket) {
           message
         );
 
+        recipientIds.forEach(pid => {
+          io.to(`user:${pid}`).emit(
+            MESSAGE_EVENTS.NEW_MESSAGE,
+            message
+          );
+        });
+
+        io.to(`user:${senderId}`).emit(
+          MESSAGE_EVENTS.NEW_MESSAGE,
+          message
+        );
+
         const onlineRecipientIds = [];
 
         await Promise.all(
@@ -119,7 +131,7 @@ export default function messageHandler(io, socket) {
 
         const readerId = socket.userId;
 
-        const updatedMessages =
+        const { updatedMessages, participantIds } =
           await MessageService.markAsRead(
             conversationId,
             readerId
@@ -133,6 +145,15 @@ export default function messageHandler(io, socket) {
               message
             }
           );
+
+          participantIds.forEach((pid) => {
+            io.to(`user:${pid}`).emit(
+              MESSAGE_EVENTS.MESSAGE_READ,
+              {
+                message
+              }
+            );
+          });
 
         });
 

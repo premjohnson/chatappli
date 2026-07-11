@@ -44,7 +44,7 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
         return msg.encryptedContent?.toLowerCase().includes(searchQuery.toLowerCase())
       }
 
-      if (msg.fileMeta?.fileName?.toLowerCase().includes(searchQuery.toLowerCase())) {
+      if (msg.fileMeta?.name?.toLowerCase().includes(searchQuery.toLowerCase())) {
         return true
       }
 
@@ -109,7 +109,11 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
   const receiverDevicesSorted = useMemo(() => {
     if (!receiverDevicesList) return EMPTY_DEVICES
     return [...receiverDevicesList].sort(
-      (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      (a, b) => {
+        const timeA = "updatedAt" in a ? new Date((a as any).updatedAt || 0).getTime() : 0
+        const timeB = "updatedAt" in b ? new Date((b as any).updatedAt || 0).getTime() : 0
+        return timeB - timeA
+      }
     )
   }, [receiverDevicesList])
 
@@ -118,7 +122,11 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
   const senderDevicesSorted = useMemo(() => {
     if (!senderDevicesList) return EMPTY_DEVICES
     return [...senderDevicesList].sort(
-      (a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      (a, b) => {
+        const timeA = "updatedAt" in a ? new Date((a as any).updatedAt || 0).getTime() : 0
+        const timeB = "updatedAt" in b ? new Date((b as any).updatedAt || 0).getTime() : 0
+        return timeB - timeA
+      }
     )
   }, [senderDevicesList])
 
@@ -153,8 +161,8 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
             msg={msg}
             identityPrivateKey={identityPrivateKey}
             receiverPublicKey={receiverPublicKey}
-            receiverDevices={receiverDevicesSorted}
-            senderDevices={senderDevicesSorted}
+            receiverDevices={receiverDevicesSorted as any}
+            senderDevices={senderDevicesSorted as any}
           />
         )
 
