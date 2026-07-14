@@ -4,12 +4,16 @@ import { deleteForMeApi } from "../api/deleteForMe.api"
 import { deleteForEveryoneApi } from "../api/deleteForEveryone.api"
 import { reactToMessageApi, togglePinApi, toggleStarApi } from "../api/messageActions.api"
 import type { Message } from "../types/message.types"
+import { useContextMenuStore } from "../../../store/contextMenu.store"
 
 export const useMessageActions = (conversationId: string) => {
   const queryClient = useQueryClient()
 
   // Helper: update message inside pages query cache
   const updateMessageInCache = (updatedMessage: Message) => {
+    const prevCache = queryClient.getQueryData(["messages", conversationId])
+    console.log("[RUNTIME LOG] React Query updates - updateMessageInCache (prev)", prevCache)
+
     queryClient.setQueryData(["messages", conversationId], (old: any) => {
       if (!old || !old.pages) return old
       const pages = old.pages.map((page: any) => ({
@@ -21,6 +25,9 @@ export const useMessageActions = (conversationId: string) => {
       return { ...old, pages }
     })
 
+    const nextCache = queryClient.getQueryData(["messages", conversationId])
+    console.log("[RUNTIME LOG] React Query updates - updateMessageInCache (next)", nextCache)
+
     // Also update last message in conversation sidebar list
     queryClient.setQueryData(["conversations"], (oldConversations: any) => {
       if (!Array.isArray(oldConversations)) return oldConversations
@@ -30,10 +37,15 @@ export const useMessageActions = (conversationId: string) => {
           : c
       )
     })
+
+    useContextMenuStore.getState().reconcileMessage(updatedMessage)
   }
 
   // Helper: remove message from query cache
   const removeMessageFromCache = (messageId: string) => {
+    const prevCache = queryClient.getQueryData(["messages", conversationId])
+    console.log("[RUNTIME LOG] React Query updates - removeMessageFromCache (prev)", prevCache)
+
     queryClient.setQueryData(["messages", conversationId], (old: any) => {
       if (!old || !old.pages) return old
       const pages = old.pages.map((page: any) => ({
@@ -42,6 +54,11 @@ export const useMessageActions = (conversationId: string) => {
       }))
       return { ...old, pages }
     })
+
+    const nextCache = queryClient.getQueryData(["messages", conversationId])
+    console.log("[RUNTIME LOG] React Query updates - removeMessageFromCache (next)", nextCache)
+
+    useContextMenuStore.getState().removeMessage(messageId)
   }
 
   const editMessage = useMutation<Message, Error, { messageId: string; encryptedContent: string; nonce: string; encryptedPayloads?: any }>({

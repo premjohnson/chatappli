@@ -17,6 +17,10 @@ import type { Conversation, ConversationParticipant } from "../../conversation/t
 import { getParticipantUserId, isParticipantCurrentUser } from "../../conversation/types/conversation.types"
 import { useMessages } from "../../message/hooks/useMessages"
 import { queryClient } from "../../../lib/queryClient"
+import { MessageContextMenu } from "../../message/components/MessageContextMenu"
+import { MessageInfoModal } from "../../message/components/MessageInfoModal"
+import type { Message } from "../../message/types/message.types"
+import { useContextMenuStore } from "../../../store/contextMenu.store"
 
 export function ChatWindow() {
   const activeConversationId = useChatStore((s) => s.activeConversationId)
@@ -26,8 +30,18 @@ export function ChatWindow() {
   const [showUserInfo, setShowUserInfo] = useState(false)
   const [chatSearchQuery, setChatSearchQuery] = useState("")
   const [isSearchActive, setIsSearchActive] = useState(false)
+  const [infoMessage, setInfoMessage] = useState<Message | null>(null)
   const isMarkingRead = useRef(false)
   const { data: messageData } = useMessages(activeConversationId ?? "");
+  const closeContextMenu = useContextMenuStore((s) => s.closeMenu)
+  const isContextMenuOpen = useContextMenuStore((s) => s.isOpen)
+
+  // Conversation changes invalidate the selected message; do not couple this
+  // to the selected-message value itself or opening the menu will close it.
+  useEffect(() => {
+    closeContextMenu()
+    setInfoMessage(null)
+  }, [activeConversationId, closeContextMenu])
 
   const currentConvo = conversations?.find((c: Conversation) => c._id === activeConversationId)
   const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
@@ -215,6 +229,16 @@ export function ChatWindow() {
           </div>
 
           <MessageInput conversationId={activeConversationId} />
+
+          {isContextMenuOpen && (
+            <MessageContextMenu onOpenInfo={(msg) => setInfoMessage(msg || null)} />
+          )}
+          <MessageInfoModal
+            isOpen={Boolean(infoMessage)}
+            onClose={() => setInfoMessage(null)}
+            message={infoMessage}
+            conversationId={activeConversationId}
+          />
 
           <AnimatePresence>
             {showUserInfo && currentConvo && (

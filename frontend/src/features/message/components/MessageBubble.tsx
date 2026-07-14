@@ -34,16 +34,24 @@
     const currentDeviceId = useAuthStore((s) => s.deviceId)
     const openViewer = useMediaViewerStore((s) => s.openViewer)
 
-    const { openMenu, isSelectionMode, toggleSelectMessage, selectedMessageIds } = useContextMenuStore()
+    const { openContextMenu, isSelectionMode, toggleSelectMessage, selectedMessageIds } = useContextMenuStore()
     const longPressTimeout = useRef<any>(null)
 
     const handleTouchStart = (e: React.TouchEvent) => {
       if (isSelectionMode) return
-      const touch = e.touches[0]
-      const clientX = touch.clientX
-      const clientY = touch.clientY
+
+      const bubbleEl = (e.currentTarget.querySelector(".bubble-card") as HTMLElement) || (e.currentTarget as HTMLElement)
+
+      console.log("[RUNTIME LOG] Long-press/touchstart event triggered", {
+        element: bubbleEl,
+        messageId: msg._id,
+        clientMessageId: msg.clientMessageId,
+        reactKey: msg.clientMessageId || msg._id,
+        conversationId: msg.conversation
+      })
+
       longPressTimeout.current = setTimeout(() => {
-        openMenu(clientX, clientY, msg)
+        openContextMenu(msg, bubbleEl)
       }, 600)
     }
 
@@ -56,7 +64,18 @@
     const handleContextMenu = (e: React.MouseEvent) => {
       e.preventDefault()
       if (isSelectionMode) return
-      openMenu(e.clientX, e.clientY, msg)
+
+      const bubbleEl = (e.currentTarget.querySelector(".bubble-card") as HTMLElement) || (e.currentTarget as HTMLElement)
+
+      console.log("[RUNTIME LOG] Right-click/contextmenu event triggered", {
+        element: bubbleEl,
+        messageId: msg._id,
+        clientMessageId: msg.clientMessageId,
+        reactKey: msg.clientMessageId || msg._id,
+        conversationId: msg.conversation
+      })
+
+      openContextMenu(msg, bubbleEl)
     }
 
     const handleBubbleClick = (e: React.MouseEvent) => {
@@ -326,7 +345,7 @@
           </div>
         ) : (
           <div className={cn(
-            "max-w-[85%] md:max-w-[75%] px-4 py-2.5 rounded-2xl relative shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-0.5 min-w-[90px]",
+            "bubble-card max-w-[85%] md:max-w-[75%] px-4 py-2.5 rounded-2xl relative shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-0.5 min-w-[90px]",
             isSent 
               ? "bg-gradient-to-br from-[#FFAF38] to-[#FF8C00] text-white rounded-tr-none" 
               : "bg-white/90 border border-white/60 text-gray-800 rounded-tl-none backdrop-blur-md"

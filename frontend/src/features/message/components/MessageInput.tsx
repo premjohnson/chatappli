@@ -475,6 +475,19 @@ export function MessageInput({ conversationId }: Props) {
         return
       }
 
+      if (replyingToMessage) {
+        console.log("[RUNTIME LOG] Reply executes", {
+          action: "reply",
+          messageId: replyingToMessage._id,
+          apiPayload: {
+            conversationId,
+            replyTo: replyingToMessage._id,
+            encryptedPayloads
+          },
+          socketPayload: null
+        })
+      }
+
       await mutateAsync({
         conversationId,
         encryptedPayloads,
@@ -540,6 +553,16 @@ export function MessageInput({ conversationId }: Props) {
           }
         }
       )
+
+      console.log("[RUNTIME LOG] Edit executes", {
+        action: "edit",
+        messageId: editingMessage._id,
+        apiPayload: {
+          messageId: editingMessage._id,
+          encryptedPayloads
+        },
+        socketPayload: null
+      })
 
       await editMessage.mutateAsync({
         messageId: editingMessage._id,

@@ -33,6 +33,7 @@ export const useSendMessage = () => {
       await queryClient.cancelQueries({ queryKey: ["messages", newMsgPayload.conversationId] })
 
       const previousMessages = queryClient.getQueryData(["messages", newMsgPayload.conversationId])
+      console.log("[RUNTIME LOG] React Query updates - onMutate (prev)", previousMessages)
 
       console.group("MESSAGE STATE UPDATE")
       console.log("source", "useSendMessage.onMutate")
@@ -115,10 +116,12 @@ export const useSendMessage = () => {
             }
           }
 
-          return {
+          const nextCache = {
             ...old,
             pages: newPages
           }
+          console.log("[RUNTIME LOG] React Query updates - onMutate (next)", nextCache)
+          return nextCache
         }
       )
 
@@ -136,6 +139,9 @@ export const useSendMessage = () => {
       console.log("newMessageSenderDeviceId", newMessage.senderDeviceId)
       console.log("newMessageEncryptedPayloads", newMessage.encryptedPayloads)
       console.groupEnd()
+
+      const prevCache = queryClient.getQueryData(["messages", variables.conversationId])
+      console.log("[RUNTIME LOG] React Query updates - onSuccess (prev)", prevCache)
 
       queryClient.setQueryData(
         ["messages", variables.conversationId],
@@ -166,7 +172,6 @@ export const useSendMessage = () => {
             pages: old.pages.map((page: any) => ({
               ...page,
               data: page.data.map((msg: Message) =>
-                msg._id.startsWith("temp-") &&
                 msg.clientMessageId === variables.clientMessageId
                   ? newMessage
                   : msg
@@ -175,6 +180,9 @@ export const useSendMessage = () => {
           }
         }
       )
+
+      const nextCache = queryClient.getQueryData(["messages", variables.conversationId])
+      console.log("[RUNTIME LOG] React Query updates - onSuccess (next)", nextCache)
 
       // Update conversations cache with new message
       queryClient.setQueryData(

@@ -219,6 +219,7 @@ export function MediaViewer() {
             {isVideo && !hasError && (
               <div className="max-w-[80vw] max-h-[75vh] w-full flex items-center justify-center rounded-lg overflow-hidden shadow-2xl z-20">
                 <CustomVideoPlayer
+                  key={fileMeta?.url}
                   url={fileMeta?.url || ""}
                   autoPlay
                 />

@@ -6,11 +6,8 @@ import MessageBubble from "./MessageBubble"
 import { getUserDevices, getUsersDevices } from "../../device/device.service"
 import { useQuery } from "@tanstack/react-query"
 import { decryptedCache } from "../../../utils/decryptedCache"
-import { useContextMenuStore } from "../../../store/contextMenu.store"
-import { MessageContextMenu } from "./MessageContextMenu"
-import { MessageInfoModal } from "./MessageInfoModal"
 
-import { useMemo, useRef, useEffect, useState } from "react"
+import { useMemo, useRef, useEffect } from "react"
 import type { Device } from "../../device/types/device.types"
 import type { Message } from "../types/message.types"
 
@@ -31,8 +28,6 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const [isInfoOpen, setIsInfoOpen] = useState(false)
-  const contextMenuMsg = useContextMenuStore((s) => s.message)
 
   const messages = useMemo(() => {
     if (!data?.pages) {
@@ -66,18 +61,14 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
         return
       }
 
-      const key = msg._id
-      if (key && !seen.has(key)) {
-        seen.add(key)
-        deduped.push(msg)
-      } else if (!key) {
-        // Fallback for optimistic temporary messages
-        const optKey = msg.clientMessageId
-        if (optKey && !seen.has(optKey)) {
-          seen.add(optKey)
-          deduped.push(msg)
-        }
-      }
+      // A message without a server id is an optimistic message. Promote its
+      // client id to _id so React keys and every context-menu action share one
+      // stable, unique message id.
+      const messageId = msg._id || msg.clientMessageId
+      if (!messageId || seen.has(messageId)) return
+
+      seen.add(messageId)
+      deduped.push(msg._id ? msg : { ...msg, _id: messageId })
     })
 
     return deduped
@@ -186,7 +177,7 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
 
         return (
           <MessageBubble
-            key={msg._id || msg.clientMessageId}
+            key={msg.clientMessageId || msg._id}
             msg={msg}
             identityPrivateKey={identityPrivateKey}
             receiverPublicKey={receiverPublicKey}
@@ -198,16 +189,6 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
       })}
 
       <div ref={bottomRef} />
-
-      {/* Floating Action context menus */}
-      <MessageContextMenu onOpenInfo={() => setIsInfoOpen(true)} />
-      
-      <MessageInfoModal 
-        isOpen={isInfoOpen}
-        onClose={() => setIsInfoOpen(false)}
-        message={contextMenuMsg}
-        conversationId={conversationId}
-      />
 
     </div>
   )

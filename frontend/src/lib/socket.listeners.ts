@@ -5,6 +5,7 @@ import { useChatStore } from "../store/chat.store"
 import { useAuthStore } from "../store/auth.store"
 import { isParticipantCurrentUser } from "../features/conversation/types/conversation.types"
 import { decryptMessage } from "../utils/crypto"
+import { useContextMenuStore } from "../store/contextMenu.store"
 
 export const registerSocketListeners = () => {
 
@@ -329,6 +330,11 @@ export const registerSocketListeners = () => {
   })
 
   socket.on("message:update", (updatedMessage: Message) => {
+    const currentSelectedId = useContextMenuStore.getState().message?._id || useContextMenuStore.getState().message?.clientMessageId
+    console.log("[RUNTIME LOG] Socket.IO receives message:update", {
+      incomingMessageId: updatedMessage._id,
+      currentSelectedId
+    })
     console.group("MESSAGE STATE UPDATE")
     console.log("source", "socket.message:update")
     console.log("messageId", updatedMessage._id)
