@@ -4,6 +4,9 @@ export interface FileMeta {
   mimeType?: string
   size?: number
   name?: string
+  fileName?: string
+  progress?: number
+  status?: 'uploading' | 'completed' | 'failed'
 }
 
 export interface MessageEditHistory {
@@ -56,4 +59,8 @@ export interface Message {
   signature?: string
   senderDeviceId?: string
   clientMessageId?: string
+  isPinned?: boolean
+  starredBy?: string[]
+  reactions?: { user: string; emoji: string }[]
+  isEdited?: boolean
 }

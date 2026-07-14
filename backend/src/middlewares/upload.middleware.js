@@ -30,3 +30,19 @@ const upload = multer({
 
 
 export const uploadAvatar = upload.single('avatar');
+
+const chatUpload = multer({
+  storage,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB limit
+    files: 1
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.originalname && file.originalname.match(/\.(exe|bat|cmd|sh|msi|vbs|js|ts|com|scr|pif)$/i)) {
+      return cb(new Error('Executable and script files are not allowed for security reasons.'), false);
+    }
+    cb(null, true);
+  }
+});
+
+export const uploadChatFileSingle = chatUpload.single('file');

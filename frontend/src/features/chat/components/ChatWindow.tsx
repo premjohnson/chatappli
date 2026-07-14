@@ -10,7 +10,7 @@ import { markAsReadApi } from "../../message/api/markAsRead.api"
 import { joinConversationRoom, leaveConversationRoom } from "../../../lib/socket"
 import { useEffect, useRef, useState, useMemo } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Shield, Lock, Key, Search } from "lucide-react"
+import { Shield, Lock, Key, Search, UploadCloud } from "lucide-react"
 import { Input } from "../../../components/ui/Input"
 import { Button } from "../../../components/ui/Button"
 import type { Conversation, ConversationParticipant } from "../../conversation/types/conversation.types"
@@ -33,6 +33,31 @@ export function ChatWindow() {
   const receiver = currentConvo?.participants.find((p: ConversationParticipant) => !isParticipantCurrentUser(p, currentUser?.id))
   const receiverId = getParticipantUserId(receiver)
   const isOnline = presenceMap[receiverId] || false
+
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (activeConversationId) {
+      setIsDragging(true)
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (!activeConversationId) return
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      document.dispatchEvent(new CustomEvent("chat-files-dropped", { detail: files }))
+    }
+  }
 
       const messages = useMemo(() => {
 
@@ -140,7 +165,20 @@ export function ChatWindow() {
 }, [hasUnreadIncoming, activeConversationId, messages.length]);
 
   return (
-    <div className="flex flex-col h-full bg-white/40 backdrop-blur-2xl rounded-[2.5rem] relative overflow-hidden border border-white/40 shadow-premium">
+    <div 
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className="flex flex-col h-full bg-white/40 backdrop-blur-2xl rounded-[2.5rem] relative overflow-hidden border border-white/40 shadow-premium"
+    >
+      {isDragging && (
+        <div className="absolute inset-0 bg-brand-primary/10 backdrop-blur-sm z-50 flex items-center justify-center border-4 border-dashed border-brand-primary rounded-[2.5rem] pointer-events-none">
+          <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center gap-2">
+            <UploadCloud className="h-10 w-10 text-brand-primary animate-bounce" />
+            <p className="text-sm font-bold text-gray-800">Drop files here to upload</p>
+          </div>
+        </div>
+      )}
       {activeConversationId ? (
         <>
           <ChatHeader

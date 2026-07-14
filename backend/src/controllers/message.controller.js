@@ -2,6 +2,7 @@ import asyncHandler from "../utils/asyncHandler.js";
 import mongoose from "mongoose";
 import MessageService from "../services/message.service.js";
 import { getIO } from "../socket/socket.server.js";
+import { uploadChatFileBuffer } from "../utils/cloudinary.util.js";
 
 
 //SEND MESSAGE
@@ -127,7 +128,7 @@ export const getMessages = asyncHandler(async (req, res) => {
 export const editMessage = asyncHandler(async (req, res) => {
 
   const { messageId } = req.params;
-  const { encryptedContent, nonce } = req.body;
+  const { encryptedContent, nonce, encryptedPayloads } = req.body;
 
   if (!mongoose.Types.ObjectId.isValid(messageId)) {
     return res.status(400).json({
@@ -141,7 +142,8 @@ export const editMessage = asyncHandler(async (req, res) => {
       messageId,
       req.user._id,
       encryptedContent,
-      nonce
+      nonce,
+      encryptedPayloads
     );
 
   res.json({
@@ -229,4 +231,66 @@ export const deleteForEveryone = asyncHandler(async (req, res) => {
     data: message
   });
 
+});
+
+// UPLOAD CHAT FILE
+export const uploadChatFile = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({
+      status: "fail",
+      message: "No file provided"
+    });
+  }
+
+  try {
+    const result = await uploadChatFileBuffer(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype
+    );
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        url: result.secure_url,
+        publicId: result.public_id,
+        size: result.bytes || req.file.size,
+        mimeType: req.file.mimetype,
+        fileName: req.file.originalname
+      }
+    });
+  } catch (error) {
+    console.error("Failed to upload file to Cloudinary:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to upload file to Cloudinary"
+    });
+  }
+});
+
+// REACT TO MESSAGE
+export const reactToMessage = asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const { emoji } = req.body;
+
+  if (!emoji) {
+    return res.status(400).json({ status: "fail", message: "Emoji is required" });
+  }
+
+  const message = await MessageService.reactToMessage(messageId, req.user._id, emoji);
+  res.json({ status: "success", data: message });
+});
+
+// PIN MESSAGE
+export const togglePin = asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const message = await MessageService.togglePinMessage(messageId, req.user._id);
+  res.json({ status: "success", data: message });
+});
+
+// STAR MESSAGE
+export const toggleStar = asyncHandler(async (req, res) => {
+  const { messageId } = req.params;
+  const message = await MessageService.toggleStarMessage(messageId, req.user._id);
+  res.json({ status: "success", data: message });
 });

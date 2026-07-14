@@ -658,12 +658,16 @@ static async addParticipant(
         throw new AppError(ERROR_CODES.NOT_PARTICIPANT, 403);
 
       if (muteType === "unmute" || !muteType) {
+        participant.isMuted = false;
         participant.muteUntil = null;
         participant.muteType = null;
       } else {
+        participant.isMuted = true;
         participant.muteType = muteType;
         if (muteType === "8_hours") {
           participant.muteUntil = new Date(Date.now() + 8 * 60 * 60 * 1000);
+        } else if (muteType === "1_day") {
+          participant.muteUntil = new Date(Date.now() + 24 * 60 * 60 * 1000);
         } else if (muteType === "1_week") {
           participant.muteUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         } else if (muteType === "always") {

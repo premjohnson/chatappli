@@ -193,6 +193,18 @@ const messageSchema = new Schema(
       default: [],
     },
 
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+
+    starredBy: [
+      {
+        type: Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
 
 
     //disappearing messages

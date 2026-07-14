@@ -255,26 +255,33 @@ class MessageService {
         await ConversationRepository.save(conversation, session);
 
         if (recipientIds.length > 0) {
+          const unmutedRecipientIds = recipientIds.filter(pid => {
+            const p = conversation.participants.find(part => (part.user._id || part.user).toString() === pid.toString());
+            if (!p) return true;
+            const isMuted = p.isMuted || (p.muteUntil && new Date(p.muteUntil) > new Date());
+            return !isMuted;
+          });
 
-          await mongoose.model("Conversation").updateOne(
-            {
-              _id: conversationId,
-              "participants.user": { $in: recipientIds }
-            },
-            {
-              $inc: {
-                "participants.$[recipient].unreadCount": 1
-              }
-            },
-            {
-              arrayFilters: [
-                {
-                  "recipient.user": { $in: recipientIds }
+          if (unmutedRecipientIds.length > 0) {
+            await mongoose.model("Conversation").updateOne(
+              {
+                _id: conversationId,
+                "participants.user": { $in: unmutedRecipientIds }
+              },
+              {
+                $inc: {
+                  "participants.$[recipient].unreadCount": 1
                 }
-              ]
-            }
-          ).session(session);
-
+              },
+              {
+                arrayFilters: [
+                  {
+                    "recipient.user": { $in: unmutedRecipientIds }
+                  }
+                ]
+              }
+            ).session(session);
+          }
         }
 
         /* Redis cache */
@@ -387,15 +394,23 @@ static async getMessages(
 
 //edit message (only within 15 minutes of sending and only by sender)
 
-  static async editMessage(messageId, userId, encryptedContent, nonce) {
+  static async editMessage(messageId, userId, encryptedContent, nonce, encryptedPayloads = null) {
 
     // 1. Zod input validation
     const editSchema = z.object({
-      encryptedContent: z.string().min(1, "Encrypted content is required"),
-      nonce: z.string().min(1, "Nonce is required"),
+      encryptedContent: z.string().optional().nullable(),
+      nonce: z.string().optional().nullable(),
+      encryptedPayloads: z.array(
+        z.object({
+          recipientUser: z.string(),
+          recipientDeviceId: z.string(),
+          encryptedContent: z.string(),
+          nonce: z.string()
+        })
+      ).optional().nullable()
     });
 
-    editSchema.parse({ encryptedContent, nonce });
+    editSchema.parse({ encryptedContent, nonce, encryptedPayloads });
 
     const message =
       await MessageRepository.findById(messageId);
@@ -424,8 +439,15 @@ static async getMessages(
       message.editHistory.shift();
     }
 
-    message.encryptedContent = encryptedContent;
-    message.nonce = nonce;
+    if (encryptedPayloads) {
+      message.encryptedPayloads = encryptedPayloads;
+    }
+    if (encryptedContent) {
+      message.encryptedContent = encryptedContent;
+    }
+    if (nonce) {
+      message.nonce = nonce;
+    }
     message.editedAt = new Date();
     message.isEdited = true;
 
@@ -490,6 +512,15 @@ static async getMessages(
       { _id: messageId },
       { $addToSet: { deletedFor: userId } }
     );
+
+    // Broadcast deleteForMe to other devices of the same user
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(`user:${userId.toString()}`).emit("message:deleteForMe", { messageId, conversationId: message.conversation });
+    } catch (err) {
+      logger.warn(`Failed to broadcast message deleteForMe: ${err.message}`);
+    }
 
     return true;
 
@@ -557,6 +588,15 @@ static async getMessages(
       }
     } catch (err) {
       logger.warn(`Failed to clear Redis cache in deleteForEveryone: ${err.message}`);
+    }
+
+    // Broadcast delete to all participants in conversation room
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(savedMessage.conversation.toString()).emit("message:update", savedMessage);
+    } catch (err) {
+      logger.warn(`Failed to broadcast message delete: ${err.message}`);
     }
 
     return savedMessage;
@@ -706,6 +746,120 @@ static async getMessages(
 
     });
 
+  }
+
+  static async reactToMessage(messageId, userId, emoji) {
+    const message = await MessageRepository.findById(messageId);
+    if (!message) throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    message.reactions = message.reactions || [];
+    const existingIndex = message.reactions.findIndex(
+      (r) => r.user.toString() === userId.toString()
+    );
+
+    if (existingIndex > -1) {
+      if (message.reactions[existingIndex].emoji === emoji) {
+        // Toggle off reaction if clicking same emoji
+        message.reactions.splice(existingIndex, 1);
+      } else {
+        // Update reaction
+        message.reactions[existingIndex].emoji = emoji;
+      }
+    } else {
+      // Add new reaction
+      message.reactions.push({ user: userId, emoji });
+    }
+
+    const savedMessage = await MessageRepository.save(message);
+
+    // Clear Redis cache
+    try {
+      const redis = getRedisClient();
+      if (redis?.isOpen) {
+        await redis.del(`chat:${savedMessage.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(`Failed to clear Redis cache in reactToMessage: ${err.message}`);
+    }
+
+    // Broadcast update
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(savedMessage.conversation.toString()).emit("message:update", savedMessage);
+    } catch (err) {
+      logger.warn(`Failed to broadcast reaction: ${err.message}`);
+    }
+
+    return savedMessage;
+  }
+
+  static async togglePinMessage(messageId, userId) {
+    const message = await MessageRepository.findById(messageId);
+    if (!message) throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    message.isPinned = !message.isPinned;
+    const savedMessage = await MessageRepository.save(message);
+
+    // Clear Redis cache
+    try {
+      const redis = getRedisClient();
+      if (redis?.isOpen) {
+        await redis.del(`chat:${savedMessage.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(`Failed to clear Redis cache in togglePinMessage: ${err.message}`);
+    }
+
+    // Broadcast update
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(savedMessage.conversation.toString()).emit("message:update", savedMessage);
+    } catch (err) {
+      logger.warn(`Failed to broadcast pin toggle: ${err.message}`);
+    }
+
+    return savedMessage;
+  }
+
+  static async toggleStarMessage(messageId, userId) {
+    const message = await MessageRepository.findById(messageId);
+    if (!message) throw new AppError(ERROR_CODES.NOT_FOUND, 404);
+
+    message.starredBy = message.starredBy || [];
+    const userIndex = message.starredBy.findIndex(
+      (id) => id.toString() === userId.toString()
+    );
+
+    if (userIndex > -1) {
+      message.starredBy.splice(userIndex, 1);
+    } else {
+      message.starredBy.push(userId);
+    }
+
+    const savedMessage = await MessageRepository.save(message);
+
+    // Clear Redis cache
+    try {
+      const redis = getRedisClient();
+      if (redis?.isOpen) {
+        await redis.del(`chat:${savedMessage.conversation}`);
+      }
+    } catch (err) {
+      logger.warn(`Failed to clear Redis cache in toggleStarMessage: ${err.message}`);
+    }
+
+    // Broadcast update
+    try {
+      const { getIO } = await import("../socket/socket.server.js");
+      const io = getIO();
+      io.to(savedMessage.conversation.toString()).emit("message:update", savedMessage);
+    } catch (err) {
+      logger.warn(`Failed to broadcast star toggle: ${err.message}`);
+    }
+
+    return savedMessage;
   }
 
 }

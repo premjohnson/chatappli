@@ -39,8 +39,8 @@ const participantSchema = new Schema(
 
     muteType: {
       type: String,
-      enum: ['all', 'mentions'],
-      default: 'all'
+      enum: ['8_hours', '1_day', '1_week', 'always', 'custom', null],
+      default: null
     },
 
     unreadCount: {

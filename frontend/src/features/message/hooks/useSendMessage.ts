@@ -19,6 +19,8 @@ import { useChatStore } from "../../../store/chat.store"
       type?: string;
       senderDeviceId?: string;
       signature?: string;
+      fileMeta?: any;
+      replyTo?: string;
     }
 export const useSendMessage = () => {
   const queryClient = useQueryClient()
@@ -58,7 +60,7 @@ export const useSendMessage = () => {
 
           // Optimistic ephemeral message structure
           const optimisticMsg: Message = {
-            _id: `temp-${Date.now()}`,
+            _id: newMsgPayload.clientMessageId || `temp-${Date.now()}`,
             conversation: newMsgPayload.conversationId,
             sender: user?.id || "",
             senderDeviceId: newMsgPayload.senderDeviceId, 
@@ -71,6 +73,8 @@ export const useSendMessage = () => {
             encryptedPayloads:
               newMsgPayload.encryptedPayloads ?? [],
             type: (newMsgPayload.type as "text" | "image" | "file" | "system") || "text",
+            fileMeta: newMsgPayload.fileMeta,
+            replyTo: newMsgPayload.replyTo,
             deliveryReceipts: [],
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

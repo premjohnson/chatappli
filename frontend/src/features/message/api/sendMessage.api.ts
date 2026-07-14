@@ -10,6 +10,7 @@ export const sendMessageApi = async (payload: {
     type?: string
     senderDeviceId?: string
     signature?: string
+    fileMeta?: any
 }) => {
 
     const res = await api.post("/messages", payload)

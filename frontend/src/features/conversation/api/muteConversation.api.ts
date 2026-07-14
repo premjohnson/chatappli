@@ -1,7 +1,7 @@
 import api from "../../../lib/axios"
 
 export interface MutePayload {
-  muteType: "8_hours" | "1_week" | "always" | "unmute"
+  muteType: "8_hours" | "1_day" | "1_week" | "always" | "unmute"
   durationSeconds?: number
 }
 

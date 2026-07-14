@@ -119,7 +119,7 @@ export default function ConversationItem({
       try {
         const parsed = JSON.parse(raw)
         if (parsed.text) text = parsed.text
-        else if (parsed.file) text = `📎 ${parsed.file.name}`
+        else if (parsed.file) text = `📎 ${parsed.file.fileName || parsed.file.name || "Attachment"}`
         else text = "New Message"
       } catch { text = raw }
     } catch { text = "Encrypted Message" }

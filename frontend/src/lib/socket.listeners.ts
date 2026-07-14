@@ -4,6 +4,7 @@ import type { Message } from "../features/message/types/message.types"
 import { useChatStore } from "../store/chat.store"
 import { useAuthStore } from "../store/auth.store"
 import { isParticipantCurrentUser } from "../features/conversation/types/conversation.types"
+import { decryptMessage } from "../utils/crypto"
 
 export const registerSocketListeners = () => {
 
@@ -17,6 +18,7 @@ export const registerSocketListeners = () => {
   socket.off(MESSAGE_EVENTS.DELIVERED)
   socket.off(MESSAGE_EVENTS.READ)
   socket.off("message:update")
+  socket.off("message:deleteForMe")
   socket.off("presence:online")
   socket.off("presence:offline")
   socket.off("presence:sync")
@@ -63,6 +65,7 @@ export const registerSocketListeners = () => {
           const newData = page.data.map((msg: Message) => {
             if (msg._id === message._id) {
               exists = true
+              return message // Reconcile/update
             }
             if (message.clientMessageId && msg.clientMessageId === message.clientMessageId) {
               replaced = true
@@ -73,7 +76,9 @@ export const registerSocketListeners = () => {
           return { ...page, data: newData }
         })
 
-        if (exists) return old
+        if (exists) {
+          return { ...old, pages }
+        }
 
         if (replaced) {
           console.group("MESSAGE STATE UPDATE")
@@ -125,10 +130,11 @@ export const registerSocketListeners = () => {
 
           const updatedParticipants = c.participants.map((p: any) => {
             if (isParticipantCurrentUser(p, currentUserId)) {
+              const isMuted = p.isMuted || (p.muteUntil && new Date(p.muteUntil) > new Date())
               const currentUnread = p.unreadCount || 0
               return {
                 ...p,
-                unreadCount: (isSender || isCurrentActive) ? 0 : currentUnread + 1
+                unreadCount: (isSender || isCurrentActive || isMuted) ? 0 : currentUnread + 1
               }
             }
             return p
@@ -147,6 +153,78 @@ export const registerSocketListeners = () => {
 
     // Update Zustand store's latest messages mapping
     useChatStore.getState().setLatestMessage(message)
+
+    // Trigger Browser Notification if appropriate
+    const activeConversationId = useChatStore.getState().activeConversationId
+    const currentUserId = useAuthStore.getState().user?.id
+    const isSender = message.sender === currentUserId
+    const isCurrentActive = message.conversation === activeConversationId
+
+    if (!isSender && (!isCurrentActive || document.visibilityState !== "visible")) {
+      const conversations = queryClient.getQueryData<any[]>(["conversations"])
+      const convo = conversations?.find((c: any) => c._id === message.conversation)
+      if (convo) {
+        const participant = convo.participants.find((p: any) => isParticipantCurrentUser(p, currentUserId))
+        const isMuted = participant?.isMuted || (participant?.muteUntil && new Date(participant.muteUntil) > new Date())
+
+        if (!isMuted) {
+          let bodyText = "New secure message"
+          try {
+            const identityPrivateKey = useAuthStore.getState().identityPrivateKey
+            const currentDeviceId = useAuthStore.getState().deviceId
+            if (identityPrivateKey && currentDeviceId && message.encryptedPayloads?.length) {
+              const payload = message.encryptedPayloads.find((p: any) => p.recipientDeviceId === currentDeviceId)
+              if (payload) {
+                let publicKey: string | null = null
+                if (message.senderDeviceId) {
+                  const cachedGroupDevices = queryClient.getQueryData<any[]>(["devices", "group", message.conversation])
+                  const senderDeviceInGroup = cachedGroupDevices?.find(d => d.deviceId === message.senderDeviceId)
+                  if (senderDeviceInGroup) {
+                    publicKey = senderDeviceInGroup.publicKey
+                  } else {
+                    const cachedUserDevices = queryClient.getQueryData<any[]>(["devices", "user", message.sender])
+                    const senderDevice = cachedUserDevices?.find(d => d.deviceId === message.senderDeviceId)
+                    if (senderDevice) {
+                      publicKey = senderDevice.publicKey
+                    }
+                  }
+                }
+
+                if (publicKey) {
+                  const decrypted = decryptMessage(
+                    payload.encryptedContent,
+                    payload.nonce,
+                    publicKey,
+                    identityPrivateKey
+                  )
+                  try {
+                    const parsed = JSON.parse(decrypted)
+                    if (parsed.text) {
+                      bodyText = parsed.text
+                    } else if (parsed.file) {
+                      bodyText = `Sent an attachment: ${parsed.file.fileName}`
+                    }
+                  } catch {
+                    bodyText = decrypted
+                  }
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("Failed to decrypt message for notification:", err)
+          }
+
+          if (Notification.permission === "granted") {
+            new Notification(convo.type === "group" ? convo.groupName || "Group Chat" : "New Secure Message", {
+              body: bodyText,
+              icon: "/favicon.ico"
+            })
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission()
+          }
+        }
+      }
+    }
 
   })
 
@@ -282,6 +360,20 @@ export const registerSocketListeners = () => {
           : c
       )
     })
+  })
+
+  socket.on("message:deleteForMe", ({ messageId, conversationId }: { messageId: string; conversationId: string }) => {
+    queryClient.setQueryData(
+      ["messages", conversationId],
+      (old: any) => {
+        if (!old || !old.pages) return old
+        const pages = old.pages.map((page: any) => ({
+          ...page,
+          data: page.data.filter((msg: Message) => msg._id !== messageId)
+        }))
+        return { ...old, pages }
+      }
+    )
   })
 
   /* ================= PRESENCE LISTENERS ================= */

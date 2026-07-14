@@ -1,13 +1,19 @@
-  import { memo, useMemo, useEffect } from "react"
+  import { memo, useMemo, useRef } from "react"
   import { decryptMessage } from "../../../utils/crypto"
-  import { decryptedCache } from "../../../utils/decryptedCache"
   import type { Message, EncryptedPayload } from "../types/message.types"
   import { motion } from "framer-motion"
   import { cn } from "../../../utils/cn"
   import { LiveBlockWidget } from "../../chat/components/LiveBlockWidget"
-  import { Check, CheckCheck } from "lucide-react"
+  import { Check, CheckCheck, Pin, Star } from "lucide-react"
   import { useAuthStore } from "../../../store/auth.store"
   import type { Device, DeviceInfo } from "../../device/types/device.types"
+  import { ImageMessage } from "./media/ImageMessage"
+  import { VideoMessage } from "./media/VideoMessage"
+  import { AudioMessage } from "./media/AudioMessage"
+  import { DocumentMessage } from "./media/DocumentMessage"
+  import { useMediaViewerStore } from "../../../store/media.store"
+  import { useContextMenuStore } from "../../../store/contextMenu.store"
+  import { useQueryClient } from "@tanstack/react-query"
 
   interface Props {
     msg: Message
@@ -26,8 +32,39 @@
   }: Props) => {
     const currentUser = useAuthStore((s) => s.user)
     const currentDeviceId = useAuthStore((s) => s.deviceId)
-  console.log("msg.sender", msg.sender);
-  console.log("typeof sender", typeof msg.sender);
+    const openViewer = useMediaViewerStore((s) => s.openViewer)
+
+    const { openMenu, isSelectionMode, toggleSelectMessage, selectedMessageIds } = useContextMenuStore()
+    const longPressTimeout = useRef<any>(null)
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+      if (isSelectionMode) return
+      const touch = e.touches[0]
+      const clientX = touch.clientX
+      const clientY = touch.clientY
+      longPressTimeout.current = setTimeout(() => {
+        openMenu(clientX, clientY, msg)
+      }, 600)
+    }
+
+    const handleTouchEnd = () => {
+      if (longPressTimeout.current) {
+        clearTimeout(longPressTimeout.current)
+      }
+    }
+
+    const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault()
+      if (isSelectionMode) return
+      openMenu(e.clientX, e.clientY, msg)
+    }
+
+    const handleBubbleClick = (e: React.MouseEvent) => {
+      if (isSelectionMode) {
+        e.stopPropagation()
+        toggleSelectMessage(msg._id)
+      }
+    }
 
     const isSent = msg.sender === currentUser?.id
 
@@ -153,11 +190,13 @@
       currentUser?.id
     ])
     const parsedMessage = useMemo(() => {
-      if (!decryptedText) return { text: "", isLiveBlock: false, blockId: "" }
+      if (!decryptedText) return { text: "", isLiveBlock: false, blockId: "", file: null }
       let text = decryptedText
+      let file = null
       try {
         const parsed = JSON.parse(decryptedText)
-        text = parsed.text || text
+        text = parsed.text !== undefined ? parsed.text : text
+        file = parsed.file || null
       } catch {
         // Not JSON
       }
@@ -168,28 +207,37 @@
         return {
           text,
           isLiveBlock: true,
-          blockId: match[1]
+          blockId: match[1],
+          file
         }
       }
 
       return {
         text,
         isLiveBlock: false,
-        blockId: ""
+        blockId: "",
+        file
       }
     }, [decryptedText])
 
-    useEffect(() => {
-      if (decryptedText && !decryptedText.startsWith("[")) {
-        decryptedCache.set(msg._id, parsedMessage.text)
-      }
-    }, [msg._id, decryptedText, parsedMessage.text])
     const time = useMemo(() => {
       return new Date(msg.createdAt).toLocaleTimeString([], {
         hour: "2-digit",
         minute: "2-digit"
       })
     }, [msg.createdAt])
+
+    const queryClient = useQueryClient()
+    const repliedMessage = useMemo(() => {
+      if (!msg.replyTo) return null
+      const messagesData = queryClient.getQueryData<any>(["messages", msg.conversation])
+      if (!messagesData?.pages) return null
+      for (const page of messagesData.pages) {
+        const found = page.data.find((m: any) => m._id === msg.replyTo)
+        if (found) return found
+      }
+      return null
+    }, [msg.replyTo, msg.conversation, queryClient])
 
   const receiptState = useMemo(() => {
     const receipts = msg.deliveryReceipts || [];
@@ -213,13 +261,57 @@
     return "sent";
   }, [msg.deliveryReceipts]);
 
+  const fileMeta = parsedMessage.file || msg.fileMeta;
+
+  const messageType = useMemo(() => {
+    if (msg.type === "system") return "system";
+    if (!fileMeta) return "text";
+    const mime = fileMeta.mimeType || "";
+    if (mime.startsWith("image/")) return "image";
+    if (mime.startsWith("video/")) return "video";
+    if (mime.startsWith("audio/")) return "audio";
+    return "document";
+  }, [msg.type, fileMeta]);
+
+    const isSelected = selectedMessageIds.includes(msg._id)
+    const isStarred = msg.starredBy?.includes(currentUser?.id || "")
+    const isPinned = msg.isPinned
+    const isDeleted = msg.isDeletedForEveryone
+
+    const reactionSummary = useMemo(() => {
+      if (!msg.reactions || msg.reactions.length === 0) return null
+      const emojis = Array.from(new Set(msg.reactions.map((r) => r.emoji)))
+      return {
+        emojis,
+        count: msg.reactions.length
+      }
+    }, [msg.reactions])
+
     return (
       <motion.div 
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 20 }}
-        className={cn("flex w-full mb-3", isSent ? "justify-end" : "justify-start")}
+        className={cn(
+          "flex w-full mb-3 items-center gap-3 transition-all relative group/bubble",
+          isSent ? "justify-end" : "justify-start",
+          isSelected ? "bg-orange-500/10 rounded-xl" : ""
+        )}
+        onClick={handleBubbleClick}
+        onContextMenu={handleContextMenu}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchMove={handleTouchEnd}
       >
+        {isSelectionMode && msg._id && (
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => toggleSelectMessage(msg._id)}
+            className="h-4.5 w-4.5 rounded border-gray-300 text-orange-500 focus:ring-orange-400 shrink-0 cursor-pointer ml-2"
+          />
+        )}
+
         {parsedMessage.isLiveBlock ? (
           <div className="relative group">
             <LiveBlockWidget blockId={parsedMessage.blockId} />
@@ -234,31 +326,161 @@
           </div>
         ) : (
           <div className={cn(
-            "max-w-[80%] md:max-w-[70%] px-4 py-2.5 rounded-2xl relative shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-0.5",
+            "max-w-[85%] md:max-w-[75%] px-4 py-2.5 rounded-2xl relative shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col gap-0.5 min-w-[90px]",
             isSent 
               ? "bg-gradient-to-br from-[#FFAF38] to-[#FF8C00] text-white rounded-tr-none" 
               : "bg-white/90 border border-white/60 text-gray-800 rounded-tl-none backdrop-blur-md"
           )}>
-            <p className="text-[14px] leading-relaxed font-medium break-words">
-              {parsedMessage.text}
-            </p>
             
-            {isSent ? (
-              <div className="flex items-center justify-end gap-1 select-none opacity-85 text-[9px] font-bold uppercase tracking-wider self-end mt-0.5">
-                <span>{time}</span>
-                {receiptState === "read" ? (
+            {/* 1. Pin Banner */}
+            {isPinned && (
+              <div className={cn(
+                "flex items-center gap-1 text-[9px] font-black uppercase tracking-widest mb-1 select-none",
+                isSent ? "text-white/60" : "text-gray-400"
+              )}>
+                <Pin className="h-3 w-3 rotate-45 shrink-0" />
+                <span>Pinned</span>
+              </div>
+            )}
+
+            {/* 2. Quoted Reply Message Preview */}
+            {repliedMessage && !isDeleted && (
+              <div className={cn(
+                "mb-1.5 p-2 rounded-lg border-l-4 text-[11px] select-none text-left",
+                isSent 
+                  ? "bg-white/10 border-white/60 text-white/95" 
+                  : "bg-gray-50 border-orange-500 text-gray-600"
+              )}>
+                <span className={cn(
+                  "font-bold block text-[10px]",
+                  isSent ? "text-white/80" : "text-orange-500"
+                )}>
+                  {repliedMessage.sender === currentUser?.id ? "You" : "Participant"}
+                </span>
+                <p className="truncate mt-0.5">
+                  {(() => {
+                    let decText = repliedMessage.encryptedContent || ""
+                    const cacheText = queryClient.getQueryData<any>(["decrypted", repliedMessage._id]) || localStorage.getItem(`decrypted-${repliedMessage._id}`)
+                    if (cacheText) decText = cacheText
+                    try {
+                      const parsed = JSON.parse(decText)
+                      return parsed.text || "📎 Attachment"
+                    } catch {
+                      return decText || "📎 Attachment"
+                    }
+                  })()}
+                </p>
+              </div>
+            )}
+
+            {/* 3. Soft Deleted placeholder */}
+            {isDeleted ? (
+              <div className="flex items-center gap-2 text-gray-400/80 italic text-xs select-none py-1.5 px-1 font-semibold text-left">
+                <span className="text-gray-400/60">🚫</span>
+                <span>{isSent ? "You deleted this message" : "This message was deleted"}</span>
+              </div>
+            ) : (
+              <>
+                {/* Render Media attachment if exists */}
+                {fileMeta && (
+                  <div className="mb-1.5 self-start">
+                    {messageType === "image" && (
+                      <ImageMessage
+                        url={fileMeta.url || ""}
+                        fileName={fileMeta.fileName || fileMeta.name || ""}
+                        status={fileMeta.status}
+                        progress={fileMeta.progress}
+                        onClick={() => openViewer(msg._id, msg.conversation)}
+                      />
+                    )}
+                    {messageType === "video" && (
+                      <VideoMessage
+                        url={fileMeta.url || ""}
+                        fileName={fileMeta.fileName || fileMeta.name || ""}
+                        status={fileMeta.status}
+                        progress={fileMeta.progress}
+                        onClick={() => openViewer(msg._id, msg.conversation)}
+                      />
+                    )}
+                    {messageType === "audio" && (
+                      <AudioMessage
+                        url={fileMeta.url || ""}
+                        fileName={fileMeta.fileName || fileMeta.name || ""}
+                        status={fileMeta.status}
+                        progress={fileMeta.progress}
+                      />
+                    )}
+                    {messageType === "document" && (
+                      <DocumentMessage
+                        url={fileMeta.url || ""}
+                        fileName={fileMeta.fileName || fileMeta.name || "Unnamed File"}
+                        size={fileMeta.size || 0}
+                        mimeType={fileMeta.mimeType || ""}
+                        status={fileMeta.status}
+                        progress={fileMeta.progress}
+                        onCancel={() => document.dispatchEvent(new CustomEvent("chat-message-cancel", { detail: { tempId: msg._id } }))}
+                        onRetry={() => document.dispatchEvent(new CustomEvent("chat-message-retry", { detail: { tempId: msg._id } }))}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Render Text message or media caption */}
+                {parsedMessage.text && (
+                  <p className="text-[14px] leading-relaxed font-semibold break-words text-left pr-4">
+                    {parsedMessage.text}
+                  </p>
+                )}
+              </>
+            )}
+            
+            {/* Timestamp and status row */}
+            <div className={cn(
+              "flex items-center gap-1 select-none text-[9px] font-bold uppercase tracking-wider self-end mt-0.5",
+              isSent ? "text-white/80" : "text-gray-400"
+            )}>
+              {/* Edited indicator */}
+              {msg.isEdited && (
+                <span className="opacity-75 italic">(Edited)</span>
+              )}
+
+              {/* Star icon */}
+              {isStarred && (
+                <Star className={cn("h-3 w-3 fill-amber-400 text-amber-400 shrink-0", isSent ? "text-amber-300" : "text-amber-500")} />
+              )}
+
+              <span>{time}</span>
+              
+              {isSent && !isDeleted && (
+                receiptState === "read" ? (
                   <CheckCheck className="w-3.5 h-3.5 text-[#34B7F1]" />
                 ) : receiptState === "delivered" ? (
                   <CheckCheck className="w-3.5 h-3.5 text-white/70" />
                 ) : (
                   <Check className="w-3.5 h-3.5 text-white/70" />
+                )
+              )}
+            </div>
+
+            {/* Reactions pill */}
+            {reactionSummary && (
+              <div 
+                className={cn(
+                  "absolute -bottom-2.5 z-10 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-black shadow-sm border select-none bg-white",
+                  isSent ? "right-3 border-orange-100 text-orange-500" : "left-3 border-gray-100 text-gray-600"
+                )}
+              >
+                <span className="flex items-center gap-0.5">
+                  {reactionSummary.emojis.map((emoji) => (
+                    <span key={emoji}>{emoji}</span>
+                  ))}
+                </span>
+                {reactionSummary.count > 1 && (
+                  <span className="ml-0.5 text-[8px] font-black">{reactionSummary.count}</span>
                 )}
               </div>
-            ) : (
-              <div className="flex items-center justify-start select-none opacity-60 text-[9px] font-bold uppercase tracking-wider text-gray-400 mt-0.5">
-                <span>{time}</span>
-              </div>
             )}
+
           </div>
         )}
       </motion.div>

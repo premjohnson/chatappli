@@ -1,6 +1,7 @@
 import ConversationService from '../services/conversation.service.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { getIO } from '../socket/socket.server.js';
+import { z } from 'zod';
 
 //CREATE PRIVATE CONV
 
@@ -389,7 +390,15 @@ export const handleJoinRequest = asyncHandler(async (req, res) => {
 
 export const muteConversation = asyncHandler(async (req, res) => {
   const { conversationId } = req.params;
-  const { muteType, durationSeconds } = req.body;
+  
+  // Zod input validation
+  const muteSchema = z.object({
+    muteType: z.enum(['8_hours', '1_day', '1_week', 'always', 'unmute', 'custom']),
+    durationSeconds: z.union([z.number(), z.string()]).optional()
+  });
+
+  const validated = muteSchema.parse(req.body);
+  const { muteType, durationSeconds } = validated;
 
   const conversation = await ConversationService.muteConversation(
     conversationId,

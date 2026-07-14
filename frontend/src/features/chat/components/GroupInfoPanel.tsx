@@ -1241,6 +1241,7 @@ export default function GroupInfoPanel({
               <div className="space-y-1">
                 {[
                   { key: "8_hours", label: "Mute for 8 Hours" },
+                  { key: "1_day", label: "Mute for 1 Day" },
                   { key: "1_week", label: "Mute for 1 Week" },
                   { key: "always", label: "Mute Always" }
                 ].map((option) => (

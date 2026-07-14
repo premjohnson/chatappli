@@ -6,9 +6,13 @@ import MessageBubble from "./MessageBubble"
 import { getUserDevices, getUsersDevices } from "../../device/device.service"
 import { useQuery } from "@tanstack/react-query"
 import { decryptedCache } from "../../../utils/decryptedCache"
+import { useContextMenuStore } from "../../../store/contextMenu.store"
+import { MessageContextMenu } from "./MessageContextMenu"
+import { MessageInfoModal } from "./MessageInfoModal"
 
-import { useMemo, useRef, useEffect } from "react"
+import { useMemo, useRef, useEffect, useState } from "react"
 import type { Device } from "../../device/types/device.types"
+import type { Message } from "../types/message.types"
 
 const EMPTY_DEVICES: Device[] = []
 
@@ -27,8 +31,10 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
 
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  const messages = useMemo(() => {
+  const [isInfoOpen, setIsInfoOpen] = useState(false)
+  const contextMenuMsg = useContextMenuStore((s) => s.message)
 
+  const messages = useMemo(() => {
     if (!data?.pages) {
       return []
     }
@@ -37,22 +43,45 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
       .reverse()
       .flatMap(page => page.data)
 
-    if (!searchQuery?.trim()) return all
+    const filtered = searchQuery?.trim()
+      ? all.filter((msg) => {
+          if (msg.type === "system") {
+            return msg.encryptedContent?.toLowerCase().includes(searchQuery.toLowerCase())
+          }
+          if (msg.fileMeta?.fileName?.toLowerCase().includes(searchQuery.toLowerCase())) {
+            return true
+          }
+          const decrypted = decryptedCache.get(msg._id)
+          return decrypted?.toLowerCase().includes(searchQuery.toLowerCase())
+        })
+      : all
 
-    return all.filter((msg) => {
-      if (msg.type === "system") {
-        return msg.encryptedContent?.toLowerCase().includes(searchQuery.toLowerCase())
+    // Deduplicate by ID and hide if soft-deleted for self
+    const seen = new Set<string>()
+    const deduped: Message[] = []
+
+    filtered.forEach((msg) => {
+      // Hide if soft-deleted for me
+      if (msg.deletedFor && msg.deletedFor.some((id: any) => String(id) === String(currentUser?.id))) {
+        return
       }
 
-      if (msg.fileMeta?.name?.toLowerCase().includes(searchQuery.toLowerCase())) {
-        return true
+      const key = msg._id
+      if (key && !seen.has(key)) {
+        seen.add(key)
+        deduped.push(msg)
+      } else if (!key) {
+        // Fallback for optimistic temporary messages
+        const optKey = msg.clientMessageId
+        if (optKey && !seen.has(optKey)) {
+          seen.add(optKey)
+          deduped.push(msg)
+        }
       }
-
-      const decrypted = decryptedCache.get(msg._id)
-      return decrypted?.toLowerCase().includes(searchQuery.toLowerCase())
     })
 
-  }, [data, searchQuery])
+    return deduped
+  }, [data, searchQuery, currentUser?.id])
 
   const currentConvo = conversations?.find(
     (c) => c._id === conversationId
@@ -151,13 +180,13 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
   }, [messages])
 
   return (
-    <div className="flex flex-col gap-3.5 p-5 overflow-y-auto h-full custom-scrollbar">
+    <div className="flex flex-col gap-3.5 p-5 overflow-y-auto h-full custom-scrollbar relative">
 
       {messages.map((msg) => {
 
         return (
           <MessageBubble
-            key={msg.clientMessageId || msg._id}
+            key={msg._id || msg.clientMessageId}
             msg={msg}
             identityPrivateKey={identityPrivateKey}
             receiverPublicKey={receiverPublicKey}
@@ -169,6 +198,16 @@ export default function MessageList({ conversationId, searchQuery }: Props) {
       })}
 
       <div ref={bottomRef} />
+
+      {/* Floating Action context menus */}
+      <MessageContextMenu onOpenInfo={() => setIsInfoOpen(true)} />
+      
+      <MessageInfoModal 
+        isOpen={isInfoOpen}
+        onClose={() => setIsInfoOpen(false)}
+        message={contextMenuMsg}
+        conversationId={conversationId}
+      />
 
     </div>
   )
