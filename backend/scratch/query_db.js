@@ -16,7 +16,6 @@ async function run() {
 
     console.log(`Found ${messages.length} messages with receipts:`);
     messages.forEach((msg) => {
-      console.log("-----------------------------------------");
       console.log(`Message ID: ${msg._id}`);
       console.log(`Sender: ${msg.sender}`);
       console.log(`Created At: ${msg.createdAt?.toISOString()}`);

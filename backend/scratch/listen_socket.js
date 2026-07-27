@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const SOCKET_URL = "http://localhost:5013";
-// Replace with a valid conversation ID from your DB
+// Replace with a valid conversation ID from your db
 const CONVERSATION_ID = "6a4f9b5ec34fd5f6b7c82bd2"; 
 
 async function run() {
@@ -25,7 +25,6 @@ async function run() {
   });
 
   socket.on("message:read", (payload) => {
-    console.log("-----------------------------------------");
     console.log("Received message:read event!");
     console.log("Payload:", JSON.stringify(payload, null, 2));
   });
